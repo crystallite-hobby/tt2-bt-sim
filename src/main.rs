@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
+use tt2_bt_sim::lines_layout::u_picture;
 
 #[derive(Parser, Debug)]
 #[command(
