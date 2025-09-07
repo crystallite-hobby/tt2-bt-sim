@@ -101,7 +101,9 @@ fn balanced_row(c: usize, k: usize) -> String {
 ///
 /// This is a thin wrapper over [`u_picture`]; instead of returning rows of
 /// `'U'`/`'_'` characters it returns a vector where each element contains the
-/// count of units in that column (from left to right).
+/// count of units in that column.  The order is front-to-back to match how
+/// formations are consumed by the simulator (i.e. the picture's columns are
+/// reversed).
 pub fn u_columns(n: usize) -> Vec<usize> {
     let rows = u_picture(n);
     if rows.is_empty() {
@@ -119,6 +121,7 @@ pub fn u_columns(n: usize) -> Vec<usize> {
         }
     }
 
+    counts.reverse();
     counts
 }
 
@@ -148,9 +151,9 @@ mod tests {
     fn column_counts() {
         assert_eq!(u_columns(1), vec![1]);
         assert_eq!(u_columns(2), vec![2]);
-        assert_eq!(u_columns(3), vec![1, 2]);
+        assert_eq!(u_columns(3), vec![2, 1]);
         assert_eq!(u_columns(4), vec![2, 2]);
-        assert_eq!(u_columns(5), vec![2, 3]);
+        assert_eq!(u_columns(5), vec![3, 2]);
         assert_eq!(u_columns(7), vec![2, 3, 2]);
         assert_eq!(u_columns(8), vec![3, 2, 3]);
         assert_eq!(u_columns(9), vec![3, 3, 3]);
