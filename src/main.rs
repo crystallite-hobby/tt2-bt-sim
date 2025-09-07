@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
-use tt2_bt_sim::lines_layout::u_picture;
+use tt2_bt_sim::lines_layout::u_columns;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -503,12 +503,19 @@ impl Formation {
             .cloned()
             .filter(|e| e.cur_health > 0.0)
             .collect();
-        // Determine columns
+        // Determine per-line capacities using U-shaped layout
         let n = alive.len().max(1);
-        let columns = cfg_column_hint(cfg, is_attacker)
-            .unwrap_or_else(|| (f64::ceil((n as f64).sqrt()) as usize).max(3));
-        // Lines
-        let lines = (n + columns - 1) / columns;
+        let columns_per_line = if let Some(c) = cfg_column_hint(cfg, is_attacker) {
+            let mut v = vec![c; n / c];
+            let rem = n % c;
+            if rem > 0 {
+                v.push(rem);
+            }
+            v
+        } else {
+            u_columns(n)
+        };
+        let lines = columns_per_line.len();
         let mut grid: Vec<Vec<Entity>> = vec![vec![]; lines];
 
         // Heuristic placement order:
@@ -552,8 +559,9 @@ impl Formation {
         // 1) Hero
         if let Some(mut h) = hero.pop() {
             let line_idx = 0usize; // front line
-            let hero_slot_pref = (5usize).min(columns).saturating_sub(1); // zero-based push order: we just push and will sort later
-                                                                          // We'll temporarily mark desired slot as position by inserting placeholder empties
+            let hero_slot_pref = (5usize)
+                .min(columns_per_line[line_idx])
+                .saturating_sub(1); // zero-based push order: we just push and will sort later
             while grid[line_idx].len() < hero_slot_pref {
                 grid[line_idx].push(dummy());
             }
@@ -567,7 +575,7 @@ impl Formation {
             for li in (1..lines).rev() {
                 // last..=1 (line #2 is index 1)
                 if let Some(mut s) = iter_sis.next() {
-                    if grid[li].len() < columns {
+                    if grid[li].len() < columns_per_line[li] {
                         grid[li].push(s);
                         any = true;
                     } else {
@@ -585,7 +593,7 @@ impl Formation {
         // 3) Sages: prefer last lines
         for mut sg in sages.into_iter() {
             for li in (0..lines).rev() {
-                if place_at(&mut grid, li, columns, sg.clone()) {
+                if place_at(&mut grid, li, columns_per_line[li], sg.clone()) {
                     break;
                 }
             }
@@ -595,11 +603,11 @@ impl Formation {
         let mut xbows_left = xbows;
         if !xbows_left.is_empty() && lines >= 2 {
             let mut xb = xbows_left.remove(0);
-            let _ = place_at(&mut grid, 1, columns, xb);
+            let _ = place_at(&mut grid, 1, columns_per_line[1], xb);
         }
         for mut xb in xbows_left.into_iter() {
             for li in (0..lines).rev() {
-                if place_at(&mut grid, li, columns, xb.clone()) {
+                if place_at(&mut grid, li, columns_per_line[li], xb.clone()) {
                     break;
                 }
             }
@@ -608,7 +616,7 @@ impl Formation {
         // 5) Others fill front to back
         for mut o in others.into_iter() {
             for li in 0..lines {
-                if place_at(&mut grid, li, columns, o.clone()) {
+                if place_at(&mut grid, li, columns_per_line[li], o.clone()) {
                     break;
                 }
             }
@@ -617,9 +625,9 @@ impl Formation {
         // Clean dummies and compact per line to max columns
         for li in 0..lines {
             grid[li].retain(|e| e.base_health >= 0.0);
-            // Ensure we don't exceed columns
-            if grid[li].len() > columns {
-                grid[li].truncate(columns);
+            // Ensure we don't exceed per-line capacity
+            if grid[li].len() > columns_per_line[li] {
+                grid[li].truncate(columns_per_line[li]);
             }
         }
 
