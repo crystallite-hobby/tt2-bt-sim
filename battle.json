@@ -1,0 +1,42 @@
+{
+   "units": {
+     "Crossbowman": {"class":"land","attack":18.0,"range":4,"health":40.0,"armor":4.0,
+                      "can_target":["land","naval","aerial"]},
+     "Horseman":    {"class":"land","attack":15.0,"range":1,"health":225.0,"armor":5.0,
+                      "bonus_vs": [{"when":["foot","small"],"add":15.0}],
+                      "can_target":["land","naval"]},
+     "SisterOfMercy":{"class":"land","heal":15.0,"heal_range":3,"range":0,
+                      "health":45.0,"armor":4.0},
+     "SageLvl3":    {"class":"land","attack":120.0,"range":3,"health":50.0,"armor":6.0,
+                      "can_target":["land","naval","aerial"],"traits":["magic"]},
+     "Dragon":      {"class":"aerial","attack":112.0,"range":2,"health":1320.0,"armor":140.0,
+                      "can_target":["land","naval","aerial"]}
+   },
+   "attacker": {
+     "roster": [
+       {"kind":"Horseman","count":18,"traits":["mounted","heavy","swords","armored","human"]},
+       {"kind":"Crossbowman","count":4,"traits":["shooting","human","foot","small","lightweight"]},
+       {"kind":"SisterOfMercy","count":9,"traits":["medic","heart","human","foot","lightweight"]},
+       {"kind":"SageLvl3","count":3,"traits":["magic","human","foot"]}
+     ],
+     "hero": {
+       "name":"Hero","attack":82.40,"range":3,"defense":50.0,
+       "health":810.0,"regen":27.0,
+       "prioritize":"lowest_health"
+     },
+     "side_mods": {"attack_mult":1.46,"heal_mult":1.12,"health_mult":1.45,"armor_mult":1.01}
+   },
+   "defender": {
+     "roster": [ {"kind":"Dragon","count":3,"traits":["monster","shooting","heart"]} ],
+     "side_mods": {"attack_mult":1.0,"heal_mult":1.0,"health_mult":1.0,"armor_mult":1.0}
+   },
+   "buildings": [
+     {"name":"FortifiedWallLvl10","health_bonus":100,"applies_to":"defender"}
+   ],
+   "rules": {
+     "max_rounds": 50,
+     "defender_acts_first": true,
+     "healer_spillover": true,
+     "targeting": "closest_then_reading_order"
+   }
+}
