@@ -557,14 +557,9 @@ impl Formation {
                 }
             };
 
-        // 1) Hero
-        if let Some(mut h) = hero.pop() {
-            let line_idx = 0usize; // front line
-            let hero_slot_pref = (5usize).min(units_per_line[line_idx]).saturating_sub(1); // zero-based push order: we just push and will sort later
-            while grid[line_idx].len() < hero_slot_pref {
-                grid[line_idx].push(dummy());
-            }
-            grid[line_idx].push(h);
+        // 1) Hero at front line; will reposition later
+        if let Some(h) = hero.pop() {
+            grid[0].push(h);
         }
 
         // 2) Sisters: back -> line 2, one per line pass until exhausted
@@ -621,12 +616,18 @@ impl Formation {
             }
         }
 
-        // Clean dummies and compact per line to max columns
+        // Ensure we don't exceed per-line capacity
         for li in 0..lines {
-            grid[li].retain(|e| e.base_health >= 0.0);
-            // Ensure we don't exceed per-line capacity
             if grid[li].len() > units_per_line[li] {
                 grid[li].truncate(units_per_line[li]);
+            }
+        }
+
+        // Move hero to preferred slot (5th or last available)
+        if let Some(hero_pos) = grid[0].iter().position(|e| e.is_hero) {
+            let desired = (5usize).min(units_per_line[0]).saturating_sub(1);
+            if desired < grid[0].len() {
+                grid[0].swap(hero_pos, desired);
             }
         }
 
@@ -645,28 +646,6 @@ impl Formation {
             }
         }
         self.grid = new_grid;
-    }
-}
-
-fn dummy() -> Entity {
-    Entity {
-        id: EntityId(0),
-        side: Side::Attacker,
-        line: 0,
-        slot: 0,
-        kind: "_dummy".into(),
-        class: "land".into(),
-        traits: vec![],
-        attack: None,
-        range: 0,
-        heal: None,
-        heal_range: None,
-        defense: 0.0,
-        base_health: -1.0,
-        bonus_health: 0.0,
-        cur_health: 0.0,
-        can_target: vec![],
-        is_hero: false,
     }
 }
 
@@ -1071,3 +1050,108 @@ fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
     state.att.entities.retain(|_, e| e.cur_health > 0.0);
     state.def_.entities.retain(|_, e| e.cur_health > 0.0);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn add_unit(form: &mut Formation, kind: &str, is_hero: bool) {
+        let id = form.alloc_id();
+        let ent = Entity {
+            id,
+            side: form.side,
+            line: 0,
+            slot: 0,
+            kind: kind.to_string(),
+            class: "land".into(),
+            traits: vec![],
+            attack: None,
+            range: 0,
+            heal: None,
+            heal_range: None,
+            defense: 0.0,
+            base_health: 1.0,
+            bonus_health: 0.0,
+            cur_health: 1.0,
+            can_target: vec![],
+            is_hero,
+        };
+        form.entities.insert(id, ent);
+    }
+
+    #[test]
+    fn repack_attacker_battle_json_layout() {
+        let cfg = BattleConfig::default();
+        let mut form = Formation::new(Side::Attacker, SideModifiers::default());
+
+        for _ in 0..18 {
+            add_unit(&mut form, "Horseman", false);
+        }
+        for _ in 0..4 {
+            add_unit(&mut form, "Crossbowman", false);
+        }
+        for _ in 0..9 {
+            add_unit(&mut form, "SisterOfMercy", false);
+        }
+        for _ in 0..3 {
+            add_unit(&mut form, "SageLvl3", false);
+        }
+        add_unit(&mut form, "Hero", true);
+
+        form.repack(&cfg, 1, true);
+
+        let kinds: Vec<Vec<String>> = form
+            .grid
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|eid| form.entities.get(eid).unwrap().kind.clone())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let expected: Vec<Vec<String>> = vec![
+            vec!["Horseman", "Horseman", "Horseman", "Horseman", "Hero", "Horseman"],
+            vec![
+                "SisterOfMercy",
+                "Crossbowman",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+            ],
+            vec![
+                "SisterOfMercy",
+                "SisterOfMercy",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+            ],
+            vec!["SisterOfMercy", "SisterOfMercy", "Horseman", "Horseman", "Horseman"],
+            vec![
+                "SisterOfMercy",
+                "SisterOfMercy",
+                "Crossbowman",
+                "Crossbowman",
+                "Horseman",
+                "Horseman",
+            ],
+            vec![
+                "SisterOfMercy",
+                "SisterOfMercy",
+                "SageLvl3",
+                "SageLvl3",
+                "SageLvl3",
+                "Crossbowman",
+            ],
+        ]
+        .into_iter()
+        .map(|line| line.into_iter().map(|s| s.to_string()).collect())
+        .collect();
+
+        assert_eq!(kinds, expected);
+        assert_eq!(form.entities.len(), 35);
+    }
+}
+
