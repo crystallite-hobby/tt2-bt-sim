@@ -1,0 +1,1630 @@
+
+----------------------------------------
+# Notes on damage calculation
+
+Damage = - (Attack^2) / (Attack + Defense)
+
+For example:
+Attack 112 vs Defense 5.05 => -(112*112)/(112+5.05)=-12544/117.05=-107.1679 => damage -107.17
+
+In the game the unit health is visualized like two separate bars -- one is the unit basic health, another is the unit additional health (due to bonus from hero characteristics). The health points of units are calculated manually and added to the reports, the calculations might contain inaccuracies or incorrectness. But the unit characteristics health data is accurate.
+
+----------------------------------------
+# Unit characteristics
+
+## Crossbowman
+
+- Damage 18 on land, naval, aerial
+    - Range 4
+- Health 40
+- Armor 4
+- Speed 163 cells per hour
+- Size 1
+- Traits (properties of this unit): land, heart, foot, small, lightweight, shooting, human
+
+## Horseman
+
+- Damage 15 on land, naval units (cannot hit aerial units)
+    - +15 damage vs foot+small units
+    - Range 1
+- Health 225
+- Armor 5
+- Speed 251 cells per hour
+- Size 2
+- Traits (peoperties of this unit): land, heart, mounted, heavy, swords, armored, human, male
+
+## SisterOfMercy
+
+- Damage 2 on land (cannot hit naval or aerial units)
+    - Range 1
+- Healing 360(15) on land+heart units
+    - Range 3
+- Health 45
+- Armor 4
+- Speed 163 cells per hour
+- Size 1
+- Traits (properties of this unit): land, heart, foot, lightweight, medic, human
+
+## SageLvl3
+
+- Damage 120 on land, naval, aerial units
+    - Range 3
+- Health 50
+- Armor 6
+- Speed 100 cells per hour
+- Size 1
+- Traits (properties of this unit): land, heart, food, magic, human
+
+## Hero
+
+- Hero characteristics are different over the attack reports (and described in the report).
+
+## Dragon
+
+- Damage 112 on land, naval, aerial units
+    - Range 2
+- Health 1320
+- Armor 140
+- Speed 100 cells per hour
+- Size 1
+- Traits (properties of this unit): aerial, heart, shooting, monster
+
+----------------------------------------
+# Buildings characteristics
+
+## FortifiedWallLvl10
+
+- Increases health of each unit defending the town by 100
+
+----------------------------------------
+# Notes on army layouts
+
+Army is formed into kind of square -- into lines with some amount of units in the line.
+For example, army of 36 units will be formed into 6 lines by 6 units. 25 units - into 5 lines by 5 units. 30 units - into 5 lines by 6 units. 20 units - into 4 lines by 5 units.
+Itermediate army layout (e.g. for 33 units) -- is matter of learning from reports or guessing/extrapolating. Layouts are determined -- knowning total amount of units you can unambiguously predict the layout (lines amount and how many units in each line).
+
+All that information about layout is preliminary info -- attack reports might provide more precise insights. So the following description about layout are just some ideas to understand better the attack reports.
+
+SisterOfMercy - those units tend to appear starting from last lines (lines with bigger number) by one unit in each line from the last line to the line #2 (but not to the first line -- they are not in the front). If those units filled all the lines from latest to #2 and if there are still some units to layout -- then they appear as a second unit in the last line, then as a second unit in the next line from last, etc.
+
+Sage - those units tend to concentrate in last lines. Probably by one or two units starting from the last line.
+
+Crossbowman -- those units also tend to concentrate in last lines, but at least one unit is appearing at line #2.
+
+Horseman - those units tend to go into first lines and to appear in every place where aforementioned units were not placed.
+
+Hero - usually appears in the first line, gut closer to the last units in the line.
+
+----------------------------------------
+# Attack report:
+
+## Armies
+
+Attacking army:
+1xHero
+18xHorseman
+4xCrossbowman
+9xSisterOfMercy
+3xSageLvl3
+-- totally 35 units
+
+Defending army:
+3xDragon
+-- totally 3 units
+
+## Hero characteristics
+
+- Health 810
+- Speed 162 cells per hour
+- Attack/damage 82.40
+    - Gunshot weapon. Weapon range 3
+- Defense 50
+- Perks:
+    - Prioritizes to hit targets with lower health
+	- Health regeneration +12+5+10 (+27 totally)
+	- Army attack +12%
+	- Army health +45%
+	- Army armor +1%
+
+## Buildings
+
+- FortifiedWallLvl10 looks like protects dragons because they are defending
+
+## Round 1
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (225+101.25) health
+    - Unit #A1.2: Horseman (225+101.25) health
+    - Unit #A1.3: Horseman (225+101.25) health
+    - Unit #A1.4: Horseman (225+101.25) health
+    - Unit #A1.5: Hero 810 health
+    - Unit #A1.6: Horseman (225+101.25) health
+- Line #2:
+    - Unit #A2.1: Horseman (225+101.25) health
+    - Unit #A2.2: SisterOfMercy (45+20.25) health
+    - Unit #A2.3: Horseman (225+101.25) health
+    - Unit #A2.4: Horseman (225+101.25) health
+    - Unit #A2.5: Horseman (225+101.25) health
+    - Unit #A2.6: Crossbowman (40+18) health
+- Line #3:
+    - Unit #A3.1: Horseman (225+101.25) health
+    - Unit #A3.2: SisterOfMercy (45+20.25) health
+    - Unit #A3.3: Horseman (225+101.25) health
+    - Unit #A3.4: Horseman (225+101.25) health
+    - Unit #A3.5: SisterOfMercy (45+20.25) health
+    - Unit #A3.6: Horseman (225+101.25) health
+- Line #4:
+    - Unit #A4.1: SageLvl3 (50+22.50) health
+    - Unit #A4.2: Horseman (225+101.25) health
+    - Unit #A4.3: SisterOfMercy (45+20.25) health
+    - Unit #A4.4: Horseman (225+101.25) health
+    - Unit #A4.5: SisterOfMercy (45+20.25) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (40+18) health
+    - Unit #A5.2: Horseman (225+101.25) health
+    - Unit #A5.3: SisterOfMercy (45+20.25) health
+    - Unit #A5.4: SageLvl3 (50+22.50) health
+    - Unit #A5.5: Horseman (225+101.25) health
+    - Unit #A5.6: SisterOfMercy (45+20.25) health
+- Line #6:
+    - Unit #A6.1: Crossbowman (40+18) health
+    - Unit #A6.2: SisterOfMercy (45+20.25) health
+    - Unit #A6.3: SageLvl3 (50+22.50) health
+    - Unit #A6.4: Horseman (225+101.25) health
+    - Unit #A6.5: SisterOfMercy (45+20.25) health
+    - Unit #A6.6: Crossbowman (40+18) health
+
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (1320+100) health
+    - Unit #D1.2: Dragon (1320+100) health
+- Line #2:
+    - Unit #D2.1: Dragon (1320+100) health
+
+Events:
+1. Dragon #D1.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now (225+101.25)-107.17=219.08
+2. Dragon #D1.2 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 219.08-107.17=111.91
+3. Dragon #D2.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 111.91-107.17=4.74
+4. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now (1320+100)-30.53=(1320+69.47)
+5. SisterOfMercy #A2.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 4.74+16.80=21.54
+6. Crossbowman #A2.6 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now (1320+69.47)-4.13=(1320+65.34)
+7. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 21.54+16.80=38.34
+8. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 38.34+16.80=55.14
+9. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 55.14+16.80=71.94
+10. SisterOfMercy #A4.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 71.94+16.80=88.74
+
+Notes:
+- Horsemen didn't do any attack on dragons because horsemen cannot attack aerial units.
+- SisterOfMercy units in lines #5 and #6 didn't do any healing because their heling range is 3, but the damaged horseman unit is in line #1 -- the line #1 is 4 lines far from the line #5, but range is lower. If range would be 4, then sisters from line #5 would manage to heal horseman in line #1.
+- Crossbowman units in lines #5 and #6 didn't do any attack on dragons, because their damage range is 4. Line #5 is 5 lines far from dragons, range is lower.
+- Sages didn't do any attack on dragons, because their damage range is 3, but they are located in lines #4, #5, #6 -- so they are located too far, range is lower.
+- Looks like 35 units lead to layout: Line#1x6units, Line#2x6units, Line#3x6units, Line#4x5units, Line#5x6units, Line#6x6units.
+
+## Round 2
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Dragon #D1.1 attacks horseman #A1.2. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.2 health is now (225+101.25)-107.17=219.08
+2. Dragon #D1.2 attacks horseman #A1.2. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.2 health is now 219.08-107.17=111.91
+3. Dragon #D2.1 attacks horseman #A1.2. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.2 health is now 111.91-107.17=4.74
+4. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now (1320+65.34)-30.53=(1320+34.81)
+5. SisterOfMercy #A2.2 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 4.74+16.80=21.54
+6. Crossbowman #A2.6 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now (1320+100)-4.13=(1320+95.87)
+7. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 88.74+16.80=105.54
+8. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 105.54+16.80=122.34
+9. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 122.34+16.80=139.14
+10. SisterOfMercy #A4.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 139.14+16.80=155.94
+
+## Round 3
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Dragon #D1.1 attacks horseman #A1.3. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.3 health is now (225+101.25)-107.17=219.08
+2. Dragon #D1.2 attacks horseman #A1.3. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.3 health is now 219.08-107.17=111.91
+3. Dragon #D2.1 attacks horseman #A1.3. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.3 health is now 111.91-107.17=4.74
+4. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now (1320+34.81)-30.53=(1320+4.28)
+5. SisterOfMercy #A2.2 heals horseman #A1.3. (15*1.12) => healing +16.80. Probably #A1.3 health is now 4.74+16.80=21.54
+6. Crossbowman #A2.6 attacks dragon #D2.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D2.1 health is now (1320+100)-4.13=(1320+95.87)
+7. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 155.94+16.80=172.74
+8. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 172.74+16.80=189.54
+9. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 189.54+16.80=206.34
+10. SisterOfMercy #A4.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 206.34+16.80=223.14
+
+## Round 4
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Dragon #D1.1 attacks horseman #A1.4. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.4 health is now (225+101.25)-107.17=219.08
+2. Dragon #D1.2 attacks horseman #A1.4. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.4 health is now 219.08-107.17=111.91
+3. Dragon #D2.1 attacks horseman #A1.4. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.4 health is now 111.91-107.17=4.74
+4. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now (1320+4.28)-30.53=1293.75
+5. SisterOfMercy #A2.2 heals horseman #A1.4. (15*1.12) => healing +16.80. Probably #A1.4 health is now 4.74+16.80=21.54
+6. Crossbowman #A2.6 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 1293.75-4.13=1289.62
+7. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 223.14+16.80=(225+14.94)
+8. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+14.94)+16.80=(225+31.74)
+9. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+31.74)+16.80=(225+48.54)
+10. SisterOfMercy #A4.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+48.54)+16.80=(225+65.34)
+
+## Round 5
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Dragon #D1.1 attacks hero #A1.5. Attack 112 vs Defense 50 => damage -77.43. Probably #A1.5 health is now 810-77.43=732.57
+2. Dragon #D1.2 attacks hero #A1.5. Attack 112 vs Defense 50 => damage -77.43. Probably #A1.5 health is now 732.57-77.43=655.14
+3. Dragon #D2.1 attacks hero #A1.5. Attack 112 vs Defense 50 => damage -77.43. Probably #A1.5 health is now 655.14-77.43=577.71
+4. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1289.62-30.53=1259.09
+5. SisterOfMercy #A2.2 heals hero #A1.5. (15*1.12) => healing +16.80. Probably #A1.5 health is now 577.71+16.80=594.51
+6. Crossbowman #A2.6 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now (1320+95.87)-4.13=(1320+91.74)
+7. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+65.34)+16.80=(225+82.14)
+8. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+82.14)+16.80=(225+98.94)
+9. SisterOfMercy #A4.3 heals horseman #A1.1. (2.06*1.12) => healing +2.30. Probably #A1.1 health is now (225+98.94)+2.30=(225+101.25)
+10. SisterOfMercy #A4.3 heals horseman #A1.2. (12.94*1.12) => healing +14.50. Probably #A1.2 health is now 21.54+14.50=36.04
+11. SisterOfMercy #A4.5 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 36.04+16.80=52.84
+
+## Round 6
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Hero #A1.5 regenerates. Health +27.0. Probably #A1.5 health is now 594.51+27.0=621.51
+2. Dragon #D1.1 attacks horseman #A1.6. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.6 health is now (225+101.25)-107.17=219.08
+3. Dragon #D1.2 attacks horseman #A1.6. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.6 health is now 219.08-107.17=111.91
+4. Dragon #D2.1 attacks horseman #A1.6. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.6 health is now 111.91-107.17=4.74
+5. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1259.09-30.53=1228.56
+6. SisterOfMercy #A2.2 heals horseman #A1.6. (15*1.12) => healing +16.80. Probably #A1.6 health is now 4.74+16.80=21.54
+7. Crossbowman #A2.6 attacks dragon #D2.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D2.1 health is now (1320+95.87)-4.13=(1320+91.74)
+8. SisterOfMercy #A3.2 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 52.84+16.80=69.64
+9. SisterOfMercy #A3.5 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 69.64+16.80=86.44
+10. SisterOfMercy #A4.3 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 86.44+16.80=103.24
+11. SisterOfMercy #A4.5 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 103.24+16.80=120.04
+
+## Round 7
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Hero #A1.5 regenerates. Health +27.0. Probably #A1.5 health is now 621.51+27.0=648.51
+2. Dragon #D1.1 attacks horseman #A2.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A2.1 health is now (225+101.25)-107.17=219.08
+3. Dragon #D1.2 attacks horseman #A2.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A2.1 health is now 219.08-107.17=111.91
+4. Dragon #D2.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now (225+101.25)-107.17=219.08
+5. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1228.56-30.53=1198.03
+6. SisterOfMercy #A2.2 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 111.91+16.80=128.71
+7. Crossbowman #A2.6 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 1198.03-4.13=1193.90
+8. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 219.08+16.80=(225+10.88)
+9. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+10.88)+16.80=(225+27.68)
+10. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+27.68)+16.80=(225+44.48)
+11. SisterOfMercy #A4.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+44.48)+16.80=(225+61.28)
+12. SisterOfMercy #A5.3 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 128.71+16.80=145.51
+13. SisterOfMercy #A5.6 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 145.51+16.80=162.31
+
+Notes:
+- Dragon #D2.1 attacked horseman #A1.1 instead of #A2.1 because the dragons damage range is 2, but the dragon #D2.1 is in line #2 of defense and horseman #A2.1 is in line #2 of attack. It is like that: AttackLine#2(Horseman#A2.1) AttackLine#1 DefenseLine#1 DefenseLine#2(Dragon#D2.1) -- so the dragon is 3 lines far from the horseman; so that the dragon's range is too low for #A2.1 horseman.
+
+## Round 8
+
+Layout same like in Round 1 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Hero #A1.5 regenerates. Health +27.0. Probably #A1.5 health is now 648.51+27.0=675.51
+2. Dragon #D1.1 attacks SisterOfMercy #A2.2. Attack 69.07 vs Defense 4.04 => damage -65.25. Probably #A2.2 health is now (45+20.25)-65.25=0
+3. Dragon #D1.1 attacks horseman #A2.3. Attack 42.93 vs Defense 5.05 => damage -38.41. Probably #A2.3 health is now (225+101.25)-38.41=(225+62.84)
+4. Dragon #D1.2 attacks horseman #A2.3. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A2.3 health is now (225+62.84)-107.17=180.67
+5. Dragon #D2.1 attacks horseman #A1.2. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.2 health is now 120.04-107.17=12.87
+6. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1193.90-30.53=1163.37
+7. SisterOfMercy #A2.2 heals horseman #A2.3. (15*1.12) => healing +16.80. Probably #A2.3 health is now 180.67+16.80=197.47
+8. Crossbowman #A2.6 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now (1320+91.74)-4.13=(1320+87.61)
+9. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+61.28)+16.80=(225+78.08)
+10. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now (225+78.08)+16.80=(225+94.88)
+11. SisterOfMercy #A4.3 heals horseman #A1.1. (5.69*1.12) => healing +6.37. Probably #A1.1 health is now (225+94.88)+6.37=(225+101.25)
+12. SisterOfMercy #A4.3 heals horseman #A1.2. (9.31*1.12) => healing +10.43. Probably #A1.2 health is now 12.87+10.43=23.30
+13. SisterOfMercy #A4.5 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 23.30+16.80=40.10
+14. SisterOfMercy #A5.3 heals horseman #A2.3. (15*1.12) => healing +16.80. Probably #A2.3 health is now 197.47+16.80=214.27
+15. SisterOfMercy #A5.6 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 162.31+16.80=179.11
+
+Notes:
+- Now SisterOfMercy #A2.2 - eliminated! -- this unit was first SisterOfMercy who usually healed the latest damaged unit (but I'm not sure if it is a strict rule or if I understand that correctly). This unit managed to heal even being eliminated.
+- Probably (I'm not sure)  SisterOfMercy #A5.3 healed horseman #A2.3 instead of #A2.1 because of SisterOfMercy #A2.2 elimination. But it might be not correct (probably need more such cases for analysis)
+
+## Round 9
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 34 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (225+101.25) health
+    - Unit #A1.2: Horseman 40.10 health
+    - Unit #A1.3: Horseman 21.54 health
+	- Unit #A1.4: Horseman 21.54 health
+    - Unit #A1.5: Hero 675.51 health
+    - Unit #A1.6: Horseman 21.54 health
+- Line #2:
+    - Unit #A2.1: Horseman 179.11 health
+    - Unit #A2.2: SisterOfMercy (45+20.25) health
+    - Unit #A2.3: Horseman 214.27 health
+    - Unit #A2.4: Horseman (225+101.25) health
+    - Unit #A2.5: Crossbowman (40+18) health
+- Line #3:
+    - Unit #A3.1: Horseman (225+101.25) health
+    - Unit #A3.2: Horseman (225+101.25) health
+    - Unit #A3.3: SisterOfMercy (45+20.25) health
+    - Unit #A3.4: Horseman (225+101.25) health
+    - Unit #A3.5: Horseman (225+101.25) health
+    - Unit #A3.6: Horseman (225+101.25) health
+- Line #4:
+    - Unit #A4.1: SageLvl3 (50+22.50) health
+    - Unit #A4.2: SisterOfMercy (45+20.25) health
+    - Unit #A4.3: Horseman (225+101.25) health
+    - Unit #A4.4: SisterOfMercy (45+20.25) health
+    - Unit #A4.5: Horseman (225+101.25) health
+    - Unit #A4.6: Crossbowman (40+18) health
+- Line #5:
+    - Unit #A5.1: Horseman (225+101.25) health
+    - Unit #A5.2: SisterOfMercy (45+20.25) health
+    - Unit #A5.3: SageLvl3 (50+22.50) health
+    - Unit #A5.4: Horseman (225+101.25) health
+    - Unit #A5.5: SisterOfMercy (45+20.25) health
+- Line #6:
+    - Unit #A6.1: Crossbowman (40+18) health
+    - Unit #A6.2: SisterOfMercy (45+20.25) health
+    - Unit #A6.3: SageLvl3 (50+22.50) health
+    - Unit #A6.4: Horseman (225+101.25) health
+    - Unit #A6.5: SisterOfMercy (45+20.25) health
+    - Unit #A6.6: Crossbowman (40+18) health
+
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon 1163.37 health
+    - Unit #D1.2: Dragon (1320+87.61) health
+- Line #2:
+    - Unit #D2.1: Dragon (1320+91.74) health
+
+Events:
+1. Hero #A1.5 regenerates. Health +27.0. Probably #A1.5 health is now 675.51+27.0=702.51
+2. Dragon #D1.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now (225+101.25)-107.17=219.08
+3. Dragon #D1.2 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 219.08-107.17=111.91
+4. Dragon #D2.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 111.91-107.17=4.74
+5. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1163.37-30.53=1132.84
+6. SisterOfMercy #A2.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 4.74+16.80=21.54
+7. Crossbowman #A2.5 attacks dragon #D2.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D2.1 health is now (1320+91.74)-4.13=(1320+87.61)
+8. SisterOfMercy #A3.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 21.54+16.80=38.34
+9. SisterOfMercy #A4.2 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now 40.10+16.80=56.90
+10. SisterOfMercy #A4.4 heals horseman #A1.3. (15*1.12) => healing +16.80. Probably #A1.3 health is now 21.54+16.80=38.34
+11. Crossbowman #A4.6 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 1132.84-4.13=1128.71
+12. SisterOfMercy #A5.2 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 179.11+16.80=195.91
+13. SisterOfMercy #A5.5 heals horseman #A2.3. (15*1.12) => healing +16.80. Probably #A2.3 health is now 214.27+16.80=(225+6.07)
+
+## Round 10
+
+Layout same like in Round 9 because no change in armies units count, but of course health is altered.
+
+Events:
+1. Hero #A1.5 regenerates. Health +27.0. Probably #A1.5 health is now 702.51+27.0=729.51
+2. Dragon #D1.1 attacks horseman #A1.2. Attack 61.57 vs Defense 5.05 => damage -56.91. Probably #A1.2 health is now 56.90-56.91=0
+3. Dragon #D1.1 attacks horseman #A1.3. Attack 42.86 vs Defense 5.05 => damage -38.35. Probably #A1.3 health is now 38.34-38.35=0
+4. Dragon #D1.1 attacks horseman #A1.4. Attack 7.56 vs Defense 5.05 => damage -4.53. Probably #A1.4 health is now 21.54-4.53=17.01
+5. Dragon #D1.2 attacks horseman #A1.4. Attack 21.09 vs Defense 5.05 => damage -17.01. Probably #A1.4 health is now 17.01-17.01=0
+6. Dragon #D1.2 attacks hero #A1.5. Attack 90.91 vs Defense 50 => damage -58.65. Probably #A1.5 health is now 729.51-58.65=670.86
+7. Dragon #D2.1 attacks hero #A1.5. Attack 112 vs Defense 50 => damage -77.43. Probably #A1.5 health is now 670.86-77.43=593.43
+8. Hero #A1.5 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1128.71-30.53=1098.18
+9. SisterOfMercy #A2.2 heals hero #A1.5. (15*1.12) => healing +16.80. Probably #A1.5 health is now 593.43+16.80=610.23
+10. Crossbowman #A2.5 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 1098.18-4.13=1094.05
+11. SisterOfMercy #A3.3 heals hero #A1.5. (15*1.12) => healing +16.80. Probably #A1.5 health is now 610.23+16.80=627.03
+12. SisterOfMercy #A4.2 heals hero #A1.5. (15*1.12) => healing +16.80. Probably #A1.2 health is now 627.03+16.80=643.83
+13. SisterOfMercy #A4.4 heals horseman #A1.6. (15*1.12) => healing +16.80. Probably #A1.6 health is now 21.54+16.80=38.34
+14. Crossbowman #A4.6 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now (1320+87.61)-4.13=(1320+83.48)
+15. SisterOfMercy #A5.2 heals horseman #A2.3. (15*1.12) => healing +16.80. Probably #A2.3 health is now (225+6.07)+16.80=(225+22.87)
+16. SisterOfMercy #A5.5 heals horseman #A2.1. (15*1.12) => healing +16.80. Probably #A2.1 health is now 195.91+16.80=212.71
+
+Notes:
+- Now Horseman #A1.2 - eliminated!
+- Now Horseman #A1.3 - eliminated!
+- Now Horseman #A1.4 - eliminated!
+
+## Round 11
+
+3 units were eliminated from the previous round, so that now the army layout is changed (now it is 31 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman 38.34 health
+    - Unit #A1.2: Horseman 38.34 health
+    - Unit #A1.3: Horseman 212.71 health
+	- Unit #A1.4: Hero 643.83 health
+    - Unit #A1.5: Horseman (225+22.87) health
+- Line #2:
+    - Unit #A2.1: Horseman (225+101.25) health
+    - Unit #A2.2: SisterOfMercy (45+20.25) health
+    - Unit #A2.3: Horseman (225+101.25) health
+    - Unit #A2.4: Horseman (225+101.25) health
+    - Unit #A2.5: Crossbowman (40+18) health
+- Line #3:
+    - Unit #A3.1: Horseman (225+101.25) health
+    - Unit #A3.2: Horseman (225+101.25) health
+    - Unit #A3.3: SisterOfMercy (45+20.25) health
+    - Unit #A3.4: Horseman (225+101.25) health
+    - Unit #A3.5: Horseman (225+101.25) health
+    - Unit #A3.6: SisterOfMercy (45+20.25) health
+- Line #4:
+    - Unit #A4.1: SageLvl3 (50+22.50) health
+    - Unit #A4.2: Horseman (225+101.25) health
+    - Unit #A4.3: SisterOfMercy (45+20.25) health
+    - Unit #A4.4: Horseman (225+101.25) health
+    - Unit #A4.5: Crossbowman (40+18) health
+- Line #5:
+    - Unit #A5.1: SisterOfMercy (45+20.25) health
+    - Unit #A5.2: Horseman (225+101.25) health
+    - Unit #A5.3: SageLvl3 (50+22.50) health
+    - Unit #A5.4: SisterOfMercy (45+20.25) health
+    - Unit #A5.5: Crossbowman (40+18) health
+- Line #6:
+    - Unit #A6.1: SisterOfMercy (45+20.25) health
+    - Unit #A6.2: Horseman (225+101.25) health
+    - Unit #A6.3: SageLvl3 (50+22.50) health
+    - Unit #A6.4: SisterOfMercy (45+20.25) health
+    - Unit #A6.5: Crossbowman (40+18) health
+
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon 1094.05 health
+    - Unit #D1.2: Dragon (1320+83.48) health
+- Line #2:
+    - Unit #D2.1: Dragon (1320+87.61) health
+
+Events:
+1. Hero #A1.4 regenerates. Health +27.0. Probably #A1.4 health is now 643.83+27.0=670.83
+2. Dragon #D1.1 attacks horseman #A1.1. Attack 42.86 vs Defense 5.05 => damage -38.35. Probably #A1.1 health is now 38.34-38.35=0
+3. Dragon #D1.1 attacks horseman #A1.2. Attack 42.86 vs Defense 5.05 => damage -38.35. Probably #A1.2 health is now 38.34-38.35=0
+4. Dragon #D1.1 attacks horseman #A1.3. Attack 26.27 vs Defense 5.05 => damage -22.04. Probably #A1.3 health is now 212.71-22.04=190.67
+5. Dragon #D1.2 attacks horseman #A1.3. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.3 health is now 190.67-107.17=83.50
+6. Dragon #D2.1 attacks horseman #A1.3. Attack 88.29 vs Defense 5.05 => damage -83.51. Probably #A1.3 health is now 83.50-83.51=0
+7. Dragon #D2.1 attacks hero #A1.4. Attack 23.71 vs Defense 50 => damage -7.63. Probably #A1.4 health is now 643.83-7.63=636.20
+8. Hero #A1.4 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1094.05-30.53=1063.52
+9. SisterOfMercy #A2.2 heals hero #A1.4. (15*1.12) => healing +16.80. Probably #A1.4 health is now 636.20+16.80=653.00
+10. Crossbowman #A2.5 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now (1320+83.48)-4.13=(1320+79.35)
+11. SisterOfMercy #A3.3 heals hero #A1.4. (15*1.12) => healing +16.80. Probably #A1.4 health is now 653.00+16.80=669.80
+12. SisterOfMercy #A3.6 heals hero #A1.4. (15*1.12) => healing +16.80. Probably #A1.4 health is now 669.80+16.80=686.60
+13. SisterOfMercy #A4.3 heals hero #A1.4. (15*1.12) => healing +16.80. Probably #A1.4 health is now 686.60+16.80=703.40
+14. Crossbowman #A4.5 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 1063.52-4.13=1059.39
+
+Notes:
+- Now Horseman #A1.1 - eliminated!
+- Now Horseman #A1.2 - eliminated!
+- Now Horseman #A1.3 - eliminated!
+
+## Round 12
+
+3 units were eliminated from the previous round, so that now the army layout is changed (now it is 28 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (225+22.87) health
+    - Unit #A1.2: Horseman (225+101.25) health
+	- Unit #A1.3: Hero 703.40 health
+    - Unit #A1.4: Horseman (225+101.25) health
+    - Unit #A1.5: Horseman (225+101.25) health
+    - Unit #A1.6: SisterOfMercy (45+20.25) health
+- Line #2:
+    - Unit #A2.1: Horseman (225+101.25) health
+    - Unit #A2.2: Horseman (225+101.25) health
+    - Unit #A2.3: Crossbowman (40+18) health
+    - Unit #A2.4: Horseman (225+101.25) health
+    - Unit #A2.5: SisterOfMercy (45+20.25) health
+- Line #3:
+    - Unit #A3.1: Horseman (225+101.25) health
+    - Unit #A3.2: Horseman (225+101.25) health
+    - Unit #A3.3: SisterOfMercy (45+20.25) health
+    - Unit #A3.4: SageLvl3 (50+22.50) health
+    - Unit #A3.5: Horseman (225+101.25) health
+    - Unit #A3.6: SisterOfMercy (45+20.25) health
+- Line #4:
+    - Unit #A4.1: Horseman (225+101.25) health
+    - Unit #A4.2: Crossbowman (40+18) health
+    - Unit #A4.3: SisterOfMercy (45+20.25) health
+    - Unit #A4.4: SisterOfMercy (45+20.25) health
+    - Unit #A4.5: SageLvl3 (50+22.50) health
+- Line #5:
+    - Unit #A5.1: Horseman (225+101.25) health
+    - Unit #A5.2: Crossbowman (40+18) health
+    - Unit #A5.3: SisterOfMercy (45+20.25) health
+    - Unit #A5.4: SageLvl3 (50+22.50) health
+    - Unit #A5.5: SisterOfMercy (45+20.25) health
+    - Unit #A5.6: Crossbowman (40+18) health
+
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon 1059.39 health
+    - Unit #D1.2: Dragon (1320+79.35) health
+- Line #2:
+    - Unit #D2.1: Dragon (1320+87.61) health
+
+Events:
+1. Hero #A1.3 regenerates. Health +27.0. Probably #A1.3 health is now 703.40+27.0=730.40
+2. Dragon #D1.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now (225+22.87)-107.17=140.70
+3. Dragon #D1.2 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 140.70-107.17=33.53
+4. Dragon #D2.1 attacks horseman #A1.1. Attack 37.99 vs Defense 5.05 => damage -33.53. Probably #A1.1 health is now 33.53-33.53=0
+5. Dragon #D2.1 attacks horseman #A1.2. Attack 74.01 vs Defense 5.05 => damage -69.28. Probably #A1.2 health is now (225+101.25)-69.28=(225+31.97)
+6. Hero #A1.3 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1059.39-30.53=1028.86
+7. SisterOfMercy #A1.6 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now (225+31.97)+16.80=(225+48.77)
+8. Crossbowman #A2.3 attacks dragon #D2.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D2.1 health is now (1320+87.61)-4.13=(1320+83.48)
+9. SisterOfMercy #A2.5 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now (225+48.77)+16.80=(225+65.57)
+10. SisterOfMercy #A3.3 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now (225+65.57)+16.80=(225+82.37)
+11. SageLvl3 #A3.4 attacks dragon #D1.2. Attack (120*1.46) vs Defense 140 => damage -97. Probably #D1.2 health is now (1320+79.35)-97=1302.35
+12. SisterOfMercy #A3.6 heals hero #A1.3. (15*1.12) => healing +16.80. Probably #A1.3 health is now 703.40+16.80=720.20
+13. Crossbowman #A4.2 attacks dragon #D1.2. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.2 health is now 1302.35-4.13=1298.22
+14. SisterOfMercy #A4.3 heals horseman #A1.2. (15*1.12) => healing +16.80. Probably #A1.2 health is now (225+82.37)+16.80=(225+99.17)
+15. SisterOfMercy #A4.4 heals horseman #A1.2. (1.86*1.12) => healing +2.08. Probably #A1.2 health is now (225+99.17)+2.08=(225+101.25)
+16. SisterOfMercy #A4.4 heals hero #A1.3. (13.14*1.12) => healing +14.72. Probably #A1.3 health is now 720.20+14.72=734.92
+
+Notes:
+- Now Horseman #A1.1 - eliminated!
+
+## Round 13
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 27 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (225+101.25) health
+    - Unit #A1.2: Horseman (225+101.25) health
+	- Unit #A1.3: Hero 734.92 health
+    - Unit #A1.4: Horseman (225+101.25) health
+    - Unit #A1.5: Horseman (225+101.25) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (45+20.25) health
+    - Unit #A2.2: Horseman (225+101.25) health
+    - Unit #A2.3: Horseman (225+101.25) health
+    - Unit #A2.4: Crossbowman (40+18) health
+    - Unit #A2.5: Horseman (225+101.25) health
+    - Unit #A2.6: SisterOfMercy (45+20.25) health
+- Line #3:
+    - Unit #A3.1: Horseman (225+101.25) health
+    - Unit #A3.2: SisterOfMercy (45+20.25) health
+    - Unit #A3.3: SageLvl3 (50+22.50) health
+    - Unit #A3.4: Horseman (225+101.25) health
+    - Unit #A3.5: SisterOfMercy (45+20.25) health
+- Line #4:
+    - Unit #A4.1: Horseman (225+101.25) health
+    - Unit #A4.2: Crossbowman (40+18) health
+    - Unit #A4.3: SisterOfMercy (45+20.25) health
+    - Unit #A4.4: SisterOfMercy (45+20.25) health
+    - Unit #A4.5: SageLvl3 (50+22.50) health
+    - Unit #A4.6: Horseman (225+101.25) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (40+18) health
+    - Unit #A5.2: SisterOfMercy (45+20.25) health
+    - Unit #A5.3: SageLvl3 (50+22.50) health
+    - Unit #A5.4: SisterOfMercy (45+20.25) health
+    - Unit #A5.5: Crossbowman (40+18) health
+
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon 1028.86 health
+    - Unit #D1.2: Dragon 1298.22 health
+- Line #2:
+    - Unit #D2.1: Dragon (1320+83.48) health
+
+Events:
+1. Hero #A1.3 regenerates. Health +21.1. Probably #A1.3 health is now 734.92+21.1=756.02 (but on visual bar it seems like hero has full health, probably it is 810 now; probably some miscalculations were with health points).
+2. Dragon #D1.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now (225+101.25)-107.17=219.08
+3. Dragon #D1.2 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 219.08-107.17=111.91
+4. Dragon #D2.1 attacks horseman #A1.1. Attack 112 vs Defense 5.05 => damage -107.17. Probably #A1.1 health is now 111.91-107.17=4.74
+5. Hero #A1.3 attacks dragon #D1.1. Attack 82.40 vs Defense 140 => damage -30.53. Probably #D1.1 health is now 1028.86-30.53=998.33
+6. SisterOfMercy #A2.1 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 4.74+16.80=21.54
+7. Crossbowman #A2.4 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 998.33-4.13=994.20
+8. SisterOfMercy #A2.6 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 21.54+16.80=38.34
+9. SisterOfMercy #A3.2 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 38.34+16.80=55.14
+10. SageLvl3 #A3.3 attacks dragon #D1.1. Attack (120*1.46) vs Defense 140 => damage -97. Probably #D1.1 health is now 994.20-97=897.20
+11. SisterOfMercy #A3.5 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 55.14+16.80=71.94
+12. Crossbowman #A4.2 attacks dragon #D1.1. Attack (18*1.46) vs Defense 140 => damage -4.13. Probably #D1.1 health is now 897.20-4.13=893.07
+13. SisterOfMercy #A4.3 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 71.94+16.80=88.74
+14. SisterOfMercy #A4.4 heals horseman #A1.1. (15*1.12) => healing +16.80. Probably #A1.1 health is now 88.74+16.80=105.54
+
+>>> Further rounds report doesn't contain info about health points or events, but still contain layout and info on losses.
+
+## Round 14,15,16,17
+
+Layout same like in Round 13 because no change in armies units count, but of course health is altered.
+
+## Round 18
+
+Layout same like in Round 13 because no change in armies units count, but of course health is altered.
+
+Notes:
+- #A2.1: SisterOfMercy is eliminated!
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+25%) health
+    - Unit #A1.2: Horseman (80%+0%) health
+	- Unit #A1.3: Hero (97%) health
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: Horseman (10%+0%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy - eliminated!
+    - Unit #A2.2: Horseman (100%+20%) health
+    - Unit #A2.3: Horseman (100%+100%) health
+    - Unit #A2.4: Crossbowman (100%+100%) health
+    - Unit #A2.5: Horseman (100%+100%) health
+    - Unit #A2.6: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: Horseman (100%+100%) health
+    - Unit #A3.5: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Horseman (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+    - Unit #A4.5: SageLvl3 (100%+100%) health
+    - Unit #A4.6: Horseman (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SisterOfMercy (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (40%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 19
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 26 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+25%) health
+    - Unit #A1.2: Horseman (80%+0%) health
+	- Unit #A1.3: Hero (97%) health
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: Horseman (10%+0%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+20%) health
+    - Unit #A2.3: Horseman (100%+100%) health
+    - Unit #A2.4: Crossbowman (100%+100%) health
+    - Unit #A2.5: Horseman (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+    - Unit #A3.6: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: Horseman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Horseman (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SisterOfMercy (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (40%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+Notes:
+- #A1.1: Horseman is eliminated!
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated!
+    - Unit #A1.2: Horseman (60%+0%) health
+	- Unit #A1.3: Hero (97%) health
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: Horseman (10%+0%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+50%) health
+    - Unit #A2.3: Horseman (100%+100%) health
+    - Unit #A2.4: Crossbowman (100%+100%) health
+    - Unit #A2.5: Horseman (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+    - Unit #A3.6: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: Horseman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Horseman (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SisterOfMercy (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (28%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 20
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 25 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (60%+0%) health
+    - Unit #A1.2: Horseman (10%+0%) health
+	- Unit #A1.3: Hero (97%) health
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: Horseman (100%+50%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Horseman (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SisterOfMercy (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (28%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+Notes:
+- #A1.1: Horseman - eliminated!
+- #A1.2: Horseman - eliminated!
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated
+    - Unit #A1.2: Horseman - eliminated
+	- Unit #A1.3: Hero (97%) health
+    - Unit #A1.4: Horseman (25%+0%) health
+    - Unit #A1.5: Horseman (100%+75%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Horseman (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SisterOfMercy (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (28%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 21
+
+2 unit were eliminated from the previous round, so that now the army layout is changed (now it is 23 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (25%+0%) health
+	- Unit #A1.2: Hero (97%) health
+    - Unit #A1.3: Horseman (100%+75%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: Horseman (100%+100%) health
+    - Unit #A3.5: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: Horseman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+- Line #5:
+    - Unit #A5.1: SisterOfMercy (100%+100%) health
+    - Unit #A5.2: Crossbowman (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (28%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+Notes:
+- #A1.1: Horseman - eliminated!
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated
+	- Unit #A1.2: Hero (87%) health
+    - Unit #A1.3: Horseman (100%+90%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: Horseman (100%+100%) health
+    - Unit #A3.5: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: Horseman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+- Line #5:
+    - Unit #A5.1: SisterOfMercy (100%+100%) health
+    - Unit #A5.2: Crossbowman (100%+100%) health
+    - Unit #A5.3: SageLvl3 (100%+100%) health
+    - Unit #A5.4: SisterOfMercy (100%+100%) health
+    - Unit #A5.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (18%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 22
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 22 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+90%) health
+	- Unit #A1.2: Hero (87%) health
+    - Unit #A1.3: Horseman (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Horseman (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (18%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+Notes:
+- #A1.1: Horseman - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated
+	- Unit #A1.2: Hero (97%) health
+    - Unit #A1.3: Horseman (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Horseman (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (15%+0%) health
+    - Unit #D1.2: Dragon (55%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 23
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 21 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+100%) health
+	- Unit #A1.2: Hero (97%) health
+    - Unit #A1.3: Horseman (100%+100%) health
+    - Unit #A1.4: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (15%+0%) health
+    - Unit #D1.2: Dragon (55%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (45%+0%) health
+	- Unit #A1.2: Hero (99%) health
+    - Unit #A1.3: Horseman (100%+100%) health
+    - Unit #A1.4: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (5%+0%) health
+    - Unit #D1.2: Dragon (55%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+75%) health
+
+## Round 24
+
+In the round beginning the layout is same like in Round 23 because no change in armies units count.
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (80%+0%) health
+	- Unit #A1.2: Hero (87%) health
+    - Unit #A1.3: Horseman (100%+100%) health
+    - Unit #A1.4: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (2%+0%) health
+    - Unit #D1.2: Dragon (50%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+60%) health
+
+## Round 25
+
+In the round beginning the layout is same like in Round 24 because no change in armies units count.
+
+Notes:
+- #D1.1: Dragon - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+0%) health
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: Horseman (1%+0%) health
+    - Unit #A1.4: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon - eliminated
+    - Unit #D1.2: Dragon (40%+0%) health
+- Line #2:
+    - Unit #D2.1: Dragon (100%+60%) health
+
+## Round 26
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 2 units in the defending army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+0%) health
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: Horseman (1%+0%) health
+    - Unit #A1.4: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (40%+0%) health
+    - Unit #D1.2: Dragon (100%+60%) health
+
+Notes:
+- #A1.4: SisterOfMercy - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+50%) health
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: Horseman (1%+0%) health
+    - Unit #A1.4: SisterOfMercy - eliminated
+- Line #2:
+    - Unit #A2.1: Horseman (95%+0%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: Crossbowman (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: SageLvl3 (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: Horseman (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: SisterOfMercy (100%+100%) health
+- Line #5:
+    - Unit #A5.1: Crossbowman (100%+100%) health
+    - Unit #A5.2: SageLvl3 (100%+100%) health
+    - Unit #A5.3: SisterOfMercy (100%+100%) health
+    - Unit #A5.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (40%+0%) health
+    - Unit #D1.2: Dragon (98%+0%) health
+
+## Round 27
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 20 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (100%+50%) health
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: Horseman (1%+0%) health
+    - Unit #A1.4: Horseman (95%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SageLvl3 (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (40%+0%) health
+    - Unit #D1.2: Dragon (98%+0%) health
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (38%+0%) health
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: Horseman (12%+0%) health
+    - Unit #A1.4: Horseman (95%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SageLvl3 (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (30%+0%) health
+    - Unit #D1.2: Dragon (95%+0%) health
+
+## Round 28
+
+In the round beginning the layout is same like in Round 27 because no change in armies units count.
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (60%+0%) health
+	- Unit #A1.2: Hero (85%) health
+    - Unit #A1.3: Horseman (12%+0%) health
+    - Unit #A1.4: Horseman (95%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SageLvl3 (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (25%+0%) health
+    - Unit #D1.2: Dragon (80%+0%) health
+
+## Round 29
+
+In the round beginning the layout is same like in Round 28 because no change in armies units count.
+
+Notes:
+- #A1.3: Horseman - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (95%+0%) health
+	- Unit #A1.2: Hero (85%) health
+    - Unit #A1.3: Horseman - eliminated
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Horseman (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SisterOfMercy (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SageLvl3 (100%+100%) health
+    - Unit #A3.2: Horseman (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (10%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+
+## Round 30
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 19 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (95%+0%) health
+	- Unit #A1.2: Hero (85%) health
+    - Unit #A1.4: Horseman (10%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+    - Unit #A1.6: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Crossbowman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (10%+0%) health
+    - Unit #D1.2: Dragon (75%+0%) health
+
+Notes:
+- #A1.1: Horseman - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated
+	- Unit #A1.2: Hero (85%) health
+    - Unit #A1.4: Horseman (22%+0%) health
+    - Unit #A1.5: SisterOfMercy (100%+100%) health
+    - Unit #A1.6: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Crossbowman (100%+100%) health
+    - Unit #A2.2: Horseman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: SisterOfMercy (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: SisterOfMercy (100%+100%) health
+    - Unit #A4.2: Crossbowman (100%+100%) health
+    - Unit #A4.3: SisterOfMercy (100%+100%) health
+    - Unit #A4.4: SageLvl3 (100%+100%) health
+    - Unit #A4.5: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (1%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+
+## Round 31
+
+1 unit was eliminated from the previous round, so that now the army layout is changed (now it is 18 units in the attacker army):
+
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman (22%+0%) health
+	- Unit #A1.2: Hero (85%) health
+    - Unit #A1.3: SisterOfMercy (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+    - Unit #A1.5: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Crossbowman (100%+100%) health
+    - Unit #A2.2: SisterOfMercy (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (1%+0%) health
+    - Unit #D1.2: Dragon (60%+0%) health
+
+Notes:
+- #A1.1: Horseman - eliminated 
+- #D1.1: Dragon - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+    - Unit #A1.1: Horseman - eliminated
+	- Unit #A1.2: Hero (90%) health
+    - Unit #A1.3: SisterOfMercy (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+    - Unit #A1.5: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: Crossbowman (100%+100%) health
+    - Unit #A2.2: SisterOfMercy (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: Horseman (100%+100%) health
+    - Unit #A3.2: SisterOfMercy (100%+100%) health
+    - Unit #A3.3: Crossbowman (100%+100%) health
+    - Unit #A3.4: SisterOfMercy (100%+100%) health
+    - Unit #A3.5: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon - eliminated
+    - Unit #D1.2: Dragon (50%+0%) health
+
+## Round 32
+
+2 units were eliminated from the previous round, so that now the army layout is changed (now it is 17 units in the attacker army and 1 unit in defending army):
+
+Attacker army layout:
+- Line #1:
+	- Unit #A1.1: Hero (90%) health
+    - Unit #A1.2: Horseman (100%+100%) health
+    - Unit #A1.3: SisterOfMercy (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (50%+0%) health
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+	- Unit #A1.1: Hero (87%) health
+    - Unit #A1.2: Horseman (100%+100%) health
+    - Unit #A1.3: SisterOfMercy (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (30%+0%) health
+
+## Round 33
+
+In the round beginning the layout is same like in Round 32 because no change in armies units count.
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+	- Unit #A1.1: Hero (92%) health
+    - Unit #A1.2: Horseman (99%+0%) health
+    - Unit #A1.3: SisterOfMercy (100%+100%) health
+    - Unit #A1.4: Horseman (100%+100%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon (12%+0%) health
+
+## Round 34
+
+In the round beginning the layout is same like in Round 33 because no change in armies units count.
+
+Notes:
+- #A1.3: SisterOfMercy - eliminated
+- #D1.1: Dragon - eliminated
+
+Update on layout unit health (rough estimation in % separately for both bars of health) at round end:
+Attacker army layout:
+- Line #1:
+	- Unit #A1.1: Hero (99%) health
+    - Unit #A1.2: Horseman (99%+0%) health
+    - Unit #A1.3: SisterOfMercy - eliminated
+    - Unit #A1.4: Horseman (100%+55%) health
+- Line #2:
+    - Unit #A2.1: SisterOfMercy (100%+100%) health
+    - Unit #A2.2: Crossbowman (100%+100%) health
+    - Unit #A2.3: SisterOfMercy (100%+100%) health
+    - Unit #A2.4: Horseman (100%+100%) health
+    - Unit #A2.5: SageLvl3 (100%+100%) health
+- Line #3:
+    - Unit #A3.1: SisterOfMercy (100%+100%) health
+    - Unit #A3.2: Crossbowman (100%+100%) health
+    - Unit #A3.3: SisterOfMercy (100%+100%) health
+    - Unit #A3.4: SageLvl3 (100%+100%) health
+- Line #4:
+    - Unit #A4.1: Crossbowman (100%+100%) health
+    - Unit #A4.2: SisterOfMercy (100%+100%) health
+    - Unit #A4.3: SageLvl3 (100%+100%) health
+    - Unit #A4.4: Crossbowman (100%+100%) health
+Defending army layout:
+- Line #1:
+    - Unit #D1.1: Dragon - eliminated
+
+Report is finished.
+
+
