@@ -84,6 +84,31 @@ fn balanced_row(c: usize, k: usize) -> String {
     row.into_iter().collect()
 }
 
+/// Return the number of units in each column for a given `n`.
+///
+/// This is a thin wrapper over [`u_picture`]; instead of returning rows of
+/// `'U'`/`'_'` characters it returns a vector where each element contains the
+/// count of units in that column (from left to right).
+pub fn u_columns(n: usize) -> Vec<usize> {
+    let rows = u_picture(n);
+    if rows.is_empty() {
+        return vec![];
+    }
+
+    let cols = rows[0].len();
+    let mut counts = vec![0usize; cols];
+
+    for row in rows {
+        for (i, ch) in row.chars().enumerate() {
+            if ch == 'U' {
+                counts[i] += 1;
+            }
+        }
+    }
+
+    counts
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,6 +129,19 @@ mod tests {
         assert_eq!(u_picture(9), vec!["UUU", "UUU", "UUU"]);
         assert_eq!(u_picture(10), vec!["UUU", "UUU", "UUU", "_U_"]);
         assert_eq!(u_picture(12), vec!["UUU", "UUU", "UUU", "UUU"]);
+    }
+
+    #[test]
+    fn column_counts() {
+        assert_eq!(u_columns(1), vec![1]);
+        assert_eq!(u_columns(2), vec![2]);
+        assert_eq!(u_columns(3), vec![1, 2]);
+        assert_eq!(u_columns(4), vec![2, 2]);
+        assert_eq!(u_columns(5), vec![2, 3]);
+        assert_eq!(u_columns(7), vec![2, 3, 2]);
+        assert_eq!(u_columns(8), vec![3, 2, 3]);
+        assert_eq!(u_columns(9), vec![3, 3, 3]);
+        assert_eq!(u_columns(10), vec![3, 4, 3]);
     }
 
     #[test]
