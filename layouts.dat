@@ -20,7 +20,7 @@ HmSgHmHmHmHm
 SiHmSiSiHmHe
 CrSi..HmCrHm
 
-Left:He+3Sg+4Cr+8Si+16Hm
+Left:He+3Sg+4Cr+8Si+18Hm
 CrHmSgHmHmHm
 SiSiSiHmSiHm
 SgSgHmSiHmHm
@@ -49,7 +49,7 @@ CrHmHmSiHm
 SiCrSiHmHm
 SgSiSgHmHe
 SiSiHmCrHm
-CrSgSiHmHM
+CrSgSiHmHm
 ..Hm..Si..
 
 Left:He+3Sg+4Cr+7Si+11Hm
@@ -82,7 +82,7 @@ SiSiSgCrHm
 CrSgSiHmHm
 ..Si..Si..
 
-Left:He+3Sg+4Cr+7Si+6Hm
+Left:He+4Sg+3Cr+7Si+6Hm
 CrCrHmHmHm
 SgSiSiHmHe
 SiSgSgCrHm
@@ -110,7 +110,7 @@ SgCrSiSi
 CrSiSgHm
 ..Sg..Hm
 
-Left:He+3Sg+4Cr+6Si+3Hm
+Left:He+2Sg+4Cr+3Si+3Hm
 CrSiSiHe
 SiCrCrHm
 CrSgHmHm

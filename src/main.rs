@@ -1,13 +1,13 @@
 //! TT2 battle report simulator prototype.
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
-use tt2_bt_sim::lines_layout::u_columns;
+use tt2_bt_sim::layouts::{canonicalize_counts, find_layout_entry, parse_layouts, SideKind};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -75,15 +75,8 @@ struct ArmyConfig {
     hero: Option<HeroDef>,
     #[serde(default)]
     side_mods: SideModifiers,
-    #[serde(default)]
-    layout: LayoutConfig,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
-struct LayoutConfig {
-    #[serde(default)]
-    columns_hint: Option<usize>,
-}
 
 #[derive(Debug, Clone, Deserialize, Default)]
 struct RulesConfig {
@@ -132,12 +125,14 @@ struct UnitDef {
     health: f64,
     armor: f64,
     #[serde(default)]
+    #[allow(dead_code)]
     size: u8,
     #[serde(default)]
     can_target: Vec<String>,
     #[serde(default)]
     bonus_vs: Vec<BonusRule>,
     #[serde(default)]
+    #[allow(dead_code)]
     traits: Vec<String>,
 }
 
@@ -161,6 +156,8 @@ struct BattleState {
 struct Formation {
     /// All alive entities in reading order (Line asc, Slot asc). Repacked per round.
     grid: Vec<Vec<EntityId>>, // lines -> slots -> entity id
+    template: Vec<Vec<Option<String>>>,
+    canon_names: Vec<String>,
     entities: BTreeMap<EntityId, Entity>,
     next_local_id: usize,
     side: Side,
@@ -198,12 +195,6 @@ enum Side {
 }
 
 impl Side {
-    fn other(self) -> Side {
-        match self {
-            Side::Attacker => Side::Defender,
-            Side::Defender => Side::Attacker,
-        }
-    }
 }
 
 fn main() -> Result<()> {
@@ -222,10 +213,47 @@ fn main() -> Result<()> {
         .map(|b| b.health_bonus)
         .sum::<f64>();
 
+    let (abbr_map, layouts) = parse_layouts("layouts.dat")?;
+
+    let mut att_counts_raw: Vec<(String, usize)> = cfg
+        .attacker
+        .roster
+        .iter()
+        .map(|cu| (cu.kind.clone(), cu.count))
+        .collect();
+    if let Some(h) = &cfg.attacker.hero {
+        att_counts_raw.push((h.name.clone(), 1));
+    }
+    let att_counts = canonicalize_counts(&att_counts_raw, &abbr_map);
+    let att_template = find_layout_entry(&layouts, SideKind::Left, &att_counts)
+        .ok_or_else(|| anyhow!("No matching layout for attacker"))?
+        .grid
+        .clone();
+
+    let def_counts_raw: Vec<(String, usize)> = cfg
+        .defender
+        .roster
+        .iter()
+        .map(|cu| (cu.kind.clone(), cu.count))
+        .collect();
+    let def_counts = canonicalize_counts(&def_counts_raw, &abbr_map);
+    let def_template = find_layout_entry(&layouts, SideKind::Right, &def_counts)
+        .ok_or_else(|| anyhow!("No matching layout for defender"))?
+        .grid
+        .clone();
+
     let mut state = BattleState {
         round: 0,
-        att: Formation::new(Side::Attacker, cfg.attacker.side_mods.clone()),
-        def_: Formation::new(Side::Defender, cfg.defender.side_mods.clone()),
+        att: Formation::new(
+            Side::Attacker,
+            cfg.attacker.side_mods.clone(),
+            att_template,
+        ),
+        def_: Formation::new(
+            Side::Defender,
+            cfg.defender.side_mods.clone(),
+            def_template,
+        ),
         cfg,
         def_building_hp_bonus,
     };
@@ -348,9 +376,8 @@ fn main() -> Result<()> {
         let def_alive = state.def_.entities.values().any(|e| e.cur_health > 0.0);
         if !att_alive || !def_alive {
             println!(
-                "\nReport finished: {} side {}.\n",
-                if att_alive { "Defending" } else { "Attacking" },
-                if att_alive { "defeated" } else { "defeated" }
+                "\nReport finished: {} side defeated.\n",
+                if att_alive { "Defending" } else { "Attacking" }
             );
             break;
         }
@@ -476,9 +503,17 @@ fn repack_layouts(state: &mut BattleState) {
 }
 
 impl Formation {
-    fn new(side: Side, side_mods: SideModifiers) -> Self {
+    fn new(side: Side, side_mods: SideModifiers, template: Vec<Vec<Option<String>>>) -> Self {
+        let mut set = BTreeSet::new();
+        for row in &template {
+            for name in row.iter().flatten() {
+                set.insert(name.clone());
+            }
+        }
         Self {
             grid: vec![],
+            template,
+            canon_names: set.into_iter().collect(),
             entities: BTreeMap::new(),
             next_local_id: 1,
             side,
@@ -491,160 +526,52 @@ impl Formation {
         self.next_local_id += 1;
         EntityId(((self.side as u64) << 56) | id)
     }
-    fn side(&self) -> Side {
-        self.side
+    fn canonicalize(&self, name: &str) -> String {
+        for c in &self.canon_names {
+            if name.starts_with(c) {
+                return c.clone();
+            }
+        }
+        name.to_string()
     }
 
-    fn repack(&mut self, cfg: &BattleConfig, _round: usize, is_attacker: bool) {
-        // Collect alive entities
-        let mut alive: Vec<Entity> = self
+    fn repack(&mut self, _cfg: &BattleConfig, _round: usize, _is_attacker: bool) {
+        let mut buckets: HashMap<String, VecDeque<Entity>> = HashMap::new();
+        for e in self
             .entities
             .values()
-            .cloned()
             .filter(|e| e.cur_health > 0.0)
-            .collect();
-        // Determine per-line capacities using U-shaped layout
-        let n = alive.len().max(1);
-        let units_per_line = if let Some(c) = cfg_column_hint(cfg, is_attacker) {
-            let mut v = vec![c; n / c];
-            let rem = n % c;
-            if rem > 0 {
-                v.push(rem);
-            }
-            v
-        } else {
-            u_columns(n)
-        };
-        let lines = units_per_line.len();
-        println!("ARMY SIZE {} UNITS PER LINE: {:?}", n, units_per_line);
-        let mut grid: Vec<Vec<Entity>> = vec![vec![]; lines];
-
-        // Heuristic placement order:
-        // 1) Reserve hero at line 1, slot min(5, columns) if exists
-        // 2) Sisters: from last line down to 2, one per line; repeat until exhausted
-        // 3) Sages: from last line backward, spread
-        // 4) Crossbows: ensure at least one in line 2, rest from back lines
-        // 5) Fill remaining with others (Horsemen, etc.) from front line forward
-
-        // Buckets by kind
-        let mut hero: Vec<Entity> = vec![];
-        let mut sisters: Vec<Entity> = vec![];
-        let mut sages: Vec<Entity> = vec![];
-        let mut xbows: Vec<Entity> = vec![];
-        let mut others: Vec<Entity> = vec![];
-        for e in alive.into_iter() {
-            if e.is_hero {
-                hero.push(e);
-            } else if e.kind.contains("Sister") {
-                sisters.push(e);
-            } else if e.kind.contains("Sage") {
-                sages.push(e);
-            } else if e.kind.contains("Crossbow") {
-                xbows.push(e);
-            } else {
-                others.push(e);
-            }
+            .cloned()
+        {
+            let key = self.canonicalize(&e.kind);
+            buckets.entry(key).or_default().push_back(e);
         }
 
-        // helper to place entity at (line, slot) if free
-        let mut place_at =
-            |grid: &mut Vec<Vec<Entity>>, line_idx: usize, max_cols: usize, ent: Entity| -> bool {
-                if grid[line_idx].len() < max_cols {
-                    grid[line_idx].push(ent);
-                    true
-                } else {
-                    false
-                }
-            };
-
-        // 1) Hero at front line; will reposition later
-        if let Some(h) = hero.pop() {
-            grid[0].push(h);
-        }
-
-        // 2) Sisters: back -> line 2, one per line pass until exhausted
-        let mut iter_sis = sisters.into_iter();
-        'outer_sis: loop {
-            let mut any = false;
-            for li in (1..lines).rev() {
-                // last..=1 (line #2 is index 1)
-                if let Some(mut s) = iter_sis.next() {
-                    if grid[li].len() < units_per_line[li] {
-                        grid[li].push(s);
-                        any = true;
-                    } else {
-                        continue;
+        let mut new_grid: Vec<Vec<EntityId>> = vec![vec![]; self.template.len()];
+        for (li, row) in self.template.iter().enumerate() {
+            let mut ids: Vec<EntityId> = vec![];
+            for (si, cell) in row.iter().enumerate() {
+                if let Some(kind) = cell {
+                    if let Some(bucket) = buckets.get_mut(kind) {
+                        if let Some(e) = bucket.pop_front() {
+                            if let Some(mut origin) = self.entities.remove(&e.id) {
+                                origin.line = li + 1;
+                                origin.slot = si + 1;
+                                let eid = origin.id;
+                                ids.push(eid);
+                                self.entities.insert(eid, origin);
+                            }
+                        }
                     }
-                } else {
-                    break 'outer_sis;
                 }
             }
-            if !any {
-                break;
-            }
+            new_grid[li] = ids;
         }
 
-        // 3) Sages: prefer last lines
-        for mut sg in sages.into_iter() {
-            for li in (0..lines).rev() {
-                if place_at(&mut grid, li, units_per_line[li], sg.clone()) {
-                    break;
-                }
-            }
+        if buckets.values().any(|v| !v.is_empty()) {
+            panic!("More units than layout capacity");
         }
 
-        // 4) Crossbows: ensure at least one in line 2
-        let mut xbows_left = xbows;
-        if !xbows_left.is_empty() && lines >= 2 {
-            let mut xb = xbows_left.remove(0);
-            let _ = place_at(&mut grid, 1, units_per_line[1], xb);
-        }
-        for mut xb in xbows_left.into_iter() {
-            for li in (0..lines).rev() {
-                if place_at(&mut grid, li, units_per_line[li], xb.clone()) {
-                    break;
-                }
-            }
-        }
-
-        // 5) Others fill front to back
-        for mut o in others.into_iter() {
-            for li in 0..lines {
-                if place_at(&mut grid, li, units_per_line[li], o.clone()) {
-                    break;
-                }
-            }
-        }
-
-        // Ensure we don't exceed per-line capacity
-        for li in 0..lines {
-            if grid[li].len() > units_per_line[li] {
-                grid[li].truncate(units_per_line[li]);
-            }
-        }
-
-        // Move hero to preferred slot (5th or last available)
-        if let Some(hero_pos) = grid[0].iter().position(|e| e.is_hero) {
-            let desired = (5usize).min(units_per_line[0]).saturating_sub(1);
-            if desired < grid[0].len() {
-                grid[0].swap(hero_pos, desired);
-            }
-        }
-
-        // Stamp new positions back to entities map + build final grid of IDs
-        let mut new_grid: Vec<Vec<EntityId>> = vec![vec![]; lines];
-        for (li, row) in grid.into_iter().enumerate() {
-            // assign slots in the order present (reading order)
-            for (si, mut e) in row.into_iter().enumerate() {
-                if let Some(mut origin) = self.entities.remove(&e.id) {
-                    origin.line = li + 1;
-                    origin.slot = si + 1;
-                    let eid = origin.id;
-                    new_grid[li].push(eid);
-                    self.entities.insert(eid, origin);
-                }
-            }
-        }
         self.grid = new_grid;
     }
 }
@@ -681,7 +608,7 @@ fn print_header(state: &BattleState) {
                 b.name, b.applies_to, b.health_bonus
             );
         }
-        println!("");
+        println!();
     }
 }
 
@@ -693,14 +620,6 @@ fn aggregate_kinds(form: &Formation) -> HashMap<&str, usize> {
         }
     }
     m
-}
-
-fn cfg_column_hint(cfg: &BattleConfig, attacker: bool) -> Option<usize> {
-    if attacker {
-        cfg.attacker.layout.columns_hint
-    } else {
-        cfg.defender.layout.columns_hint
-    }
 }
 
 fn print_layouts(state: &BattleState) {
@@ -724,7 +643,7 @@ fn print_layouts(state: &BattleState) {
             );
         }
     }
-    println!("");
+    println!();
 
     // Defender
     println!("Defending army layout:");
@@ -746,13 +665,13 @@ fn print_layouts(state: &BattleState) {
             );
         }
     }
-    println!("");
+    println!();
 }
 
 fn is_alive(state: &BattleState, eid: EntityId) -> bool {
     get_entity(state, eid).cur_health > 0.0
 }
-fn get_entity<'a>(state: &'a BattleState, eid: EntityId) -> &'a Entity {
+fn get_entity(state: &BattleState, eid: EntityId) -> &Entity {
     state
         .att
         .entities
@@ -760,7 +679,7 @@ fn get_entity<'a>(state: &'a BattleState, eid: EntityId) -> &'a Entity {
         .or_else(|| state.def_.entities.get(&eid))
         .expect("entity")
 }
-fn get_entity_mut<'a>(state: &'a mut BattleState, eid: EntityId) -> &'a mut Entity {
+fn get_entity_mut(state: &mut BattleState, eid: EntityId) -> &mut Entity {
     if state.att.entities.contains_key(&eid) {
         state.att.entities.get_mut(&eid).unwrap()
     } else {
@@ -902,7 +821,7 @@ fn attacker_act(
         if dist <= range {
             for &eid in row {
                 let e = get_entity(state, eid);
-                if e.cur_health > 0.0 && can_target.iter().any(|cls| *cls == e.class) {
+                if e.cur_health > 0.0 && can_target.contains(&e.class) {
                     cands.push((dist, eid));
                 }
             }
@@ -1082,7 +1001,21 @@ mod tests {
     #[test]
     fn repack_attacker_battle_json_layout() {
         let cfg = BattleConfig::default();
-        let mut form = Formation::new(Side::Attacker, SideModifiers::default());
+
+        let (abbr, layouts) = parse_layouts("layouts.dat").unwrap();
+        let raw_counts = vec![
+            ("Horseman".to_string(), 18),
+            ("Crossbowman".to_string(), 4),
+            ("SisterOfMercy".to_string(), 9),
+            ("SageLvl3".to_string(), 3),
+            ("Hero".to_string(), 1),
+        ];
+        let counts = canonicalize_counts(&raw_counts, &abbr);
+        let template = find_layout_entry(&layouts, SideKind::Left, &counts)
+            .unwrap()
+            .grid
+            .clone();
+        let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
             add_unit(&mut form, "Horseman", false);
@@ -1111,10 +1044,33 @@ mod tests {
             .collect();
 
         let expected: Vec<Vec<String>> = vec![
-            vec!["Horseman", "Horseman", "Horseman", "Horseman", "Hero", "Horseman"],
+            vec![
+                "Crossbowman",
+                "Crossbowman",
+                "SageLvl3",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+            ],
             vec![
                 "SisterOfMercy",
-                "Crossbowman",
+                "Horseman",
+                "Horseman",
+                "SisterOfMercy",
+                "SisterOfMercy",
+                "Horseman",
+            ],
+            vec![
+                "SageLvl3",
+                "SisterOfMercy",
+                "SisterOfMercy",
+                "Horseman",
+                "Horseman",
+                "Horseman",
+            ],
+            vec![
+                "Horseman",
+                "SageLvl3",
                 "Horseman",
                 "Horseman",
                 "Horseman",
@@ -1122,28 +1078,18 @@ mod tests {
             ],
             vec![
                 "SisterOfMercy",
-                "SisterOfMercy",
                 "Horseman",
-                "Horseman",
-                "Horseman",
-                "Horseman",
-            ],
-            vec!["SisterOfMercy", "SisterOfMercy", "Horseman", "Horseman", "Horseman"],
-            vec![
                 "SisterOfMercy",
                 "SisterOfMercy",
-                "Crossbowman",
-                "Crossbowman",
                 "Horseman",
-                "Horseman",
+                "Hero",
             ],
             vec![
-                "SisterOfMercy",
-                "SisterOfMercy",
-                "SageLvl3",
-                "SageLvl3",
-                "SageLvl3",
                 "Crossbowman",
+                "SisterOfMercy",
+                "Horseman",
+                "Crossbowman",
+                "Horseman",
             ],
         ]
         .into_iter()
