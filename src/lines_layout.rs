@@ -1,7 +1,7 @@
 /// Build the multi-line "U" / "_" picture for a given positive integer n (1..=500).
 /// Returns a Vec<String>, one string per row.
 pub fn u_picture(n: usize) -> Vec<String> {
-    assert!(n >= 1 && n <= 500);
+    assert!((1..=500).contains(&n));
 
     // Compute r = ceil(sqrt(n)) without floating point.
     let mut r = 1usize;
