@@ -191,3 +191,57 @@ pub fn canonicalize_counts(
     }
     map
 }
+
+pub fn select_layout(
+    layouts: &[LayoutEntry],
+    side: SideKind,
+    counts: &BTreeMap<String, usize>,
+) -> Option<Vec<Vec<Option<String>>>> {
+    if let Some(entry) = find_layout_entry(layouts, side, counts) {
+        Some(entry.grid.clone())
+    } else if counts.len() == 1 {
+        let (unit, &num) = counts.iter().next().unwrap();
+        Some(single_unit_layout(side, unit, num))
+    } else {
+        None
+    }
+}
+
+fn single_unit_layout(
+    side: SideKind,
+    unit: &str,
+    count: usize,
+) -> Vec<Vec<Option<String>>> {
+    let picture = u_picture(count);
+    picture
+        .into_iter()
+        .map(|row| {
+            let mut cells: Vec<Option<String>> = row
+                .chars()
+                .map(|ch| if ch == 'U' { Some(unit.to_string()) } else { None })
+                .collect();
+            if side == SideKind::Right {
+                cells.reverse();
+            }
+            cells
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fallback_single_unit_layout_right() {
+        let layouts: Vec<LayoutEntry> = vec![];
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        counts.insert("Dragon".into(), 3);
+        let grid = select_layout(&layouts, SideKind::Right, &counts).unwrap();
+        let expected = vec![
+            vec![Some("Dragon".into()), Some("Dragon".into())],
+            vec![Some("Dragon".into()), None],
+        ];
+        assert_eq!(grid, expected);
+    }
+}
