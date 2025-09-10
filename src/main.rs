@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
-use tt2_bt_sim::layouts::{canonicalize_counts, find_layout_entry, parse_layouts, SideKind};
+use tt2_bt_sim::layouts::{canonicalize_counts, parse_layouts, select_layout, SideKind};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -225,10 +225,8 @@ fn main() -> Result<()> {
         att_counts_raw.push((h.name.clone(), 1));
     }
     let att_counts = canonicalize_counts(&att_counts_raw, &abbr_map);
-    let att_template = find_layout_entry(&layouts, SideKind::Left, &att_counts)
-        .ok_or_else(|| anyhow!("No matching layout for attacker"))?
-        .grid
-        .clone();
+    let att_template = select_layout(&layouts, SideKind::Left, &att_counts)
+        .ok_or_else(|| anyhow!("No matching layout for attacker"))?;
 
     let def_counts_raw: Vec<(String, usize)> = cfg
         .defender
@@ -237,10 +235,8 @@ fn main() -> Result<()> {
         .map(|cu| (cu.kind.clone(), cu.count))
         .collect();
     let def_counts = canonicalize_counts(&def_counts_raw, &abbr_map);
-    let def_template = find_layout_entry(&layouts, SideKind::Right, &def_counts)
-        .ok_or_else(|| anyhow!("No matching layout for defender"))?
-        .grid
-        .clone();
+    let def_template = select_layout(&layouts, SideKind::Right, &def_counts)
+        .ok_or_else(|| anyhow!("No matching layout for defender"))?;
 
     let mut state = BattleState {
         round: 0,
@@ -1011,10 +1007,7 @@ mod tests {
             ("Hero".to_string(), 1),
         ];
         let counts = canonicalize_counts(&raw_counts, &abbr);
-        let template = find_layout_entry(&layouts, SideKind::Left, &counts)
-            .unwrap()
-            .grid
-            .clone();
+        let template = select_layout(&layouts, SideKind::Left, &counts).unwrap();
         let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
