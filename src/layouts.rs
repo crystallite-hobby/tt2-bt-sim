@@ -5,11 +5,16 @@ use std::fs;
 use crate::lines_layout::u_picture;
 use crate::types::UnitKind;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayoutLine {
+    pub units: Vec<UnitKind>,
+}
+
 #[derive(Debug, Clone)]
 pub struct LayoutEntry {
     pub side: SideKind,
     pub counts: BTreeMap<UnitKind, usize>,
-    pub grid: Vec<Vec<Option<UnitKind>>>,
+    pub units: Vec<LayoutLine>,
     pub line_no: usize,
 }
 
@@ -101,9 +106,6 @@ pub fn parse_layouts(path: &str) -> Result<Vec<LayoutEntry>> {
                     cells.push(Some(kind));
                 }
             }
-            if side == SideKind::Right {
-                cells.reverse();
-            }
             grid.push(cells);
             i += 1;
         }
@@ -135,10 +137,26 @@ pub fn parse_layouts(path: &str) -> Result<Vec<LayoutEntry>> {
             );
         }
 
+        // transform rows into column-oriented layout lines
+        let cols = grid.iter().map(|r| r.len()).max().unwrap_or(0);
+        let mut lines_vec: Vec<LayoutLine> = Vec::with_capacity(cols);
+        for c in 0..cols {
+            let mut col_units: Vec<UnitKind> = Vec::new();
+            for r in &grid {
+                if let Some(Some(kind)) = r.get(c) {
+                    col_units.push(*kind);
+                }
+            }
+            lines_vec.push(LayoutLine { units: col_units });
+        }
+        if side == SideKind::Left {
+            lines_vec.reverse();
+        }
+
         entries.push(LayoutEntry {
             side,
             counts,
-            grid,
+            units: lines_vec,
             line_no: i + 1,
         });
     }
@@ -169,9 +187,9 @@ pub fn select_layout(
     layouts: &[LayoutEntry],
     side: SideKind,
     counts: &BTreeMap<UnitKind, usize>,
-) -> Option<Vec<Vec<Option<UnitKind>>>> {
+) -> Option<Vec<LayoutLine>> {
     if let Some(entry) = find_layout_entry(layouts, side, counts) {
-        Some(entry.grid.clone())
+        Some(entry.units.clone())
     } else if counts.len() == 1 {
         let (unit, &num) = counts.iter().next().unwrap();
         Some(single_unit_layout(side, *unit, num))
@@ -180,21 +198,27 @@ pub fn select_layout(
     }
 }
 
-fn single_unit_layout(side: SideKind, unit: UnitKind, count: usize) -> Vec<Vec<Option<UnitKind>>> {
+fn single_unit_layout(side: SideKind, unit: UnitKind, count: usize) -> Vec<LayoutLine> {
     let picture = u_picture(count);
-    picture
-        .into_iter()
-        .map(|row| {
-            let mut cells: Vec<Option<UnitKind>> = row
-                .chars()
-                .map(|ch| if ch == 'U' { Some(unit) } else { None })
-                .collect();
-            if side == SideKind::Right {
-                cells.reverse();
+    if picture.is_empty() {
+        return vec![];
+    }
+    let rows = picture.len();
+    let cols = picture[0].len();
+    let mut lines: Vec<LayoutLine> = Vec::with_capacity(cols);
+    for c in 0..cols {
+        let mut col_units: Vec<UnitKind> = Vec::new();
+        for r in 0..rows {
+            if picture[r].as_bytes()[c] == b'U' {
+                col_units.push(unit);
             }
-            cells
-        })
-        .collect()
+        }
+        lines.push(LayoutLine { units: col_units });
+    }
+    if side == SideKind::Left {
+        lines.reverse();
+    }
+    lines
 }
 
 #[cfg(test)]
@@ -208,8 +232,12 @@ mod tests {
         counts.insert(UnitKind::BroilerDragon, 3);
         let grid = select_layout(&layouts, SideKind::Right, &counts).unwrap();
         let expected = vec![
-            vec![Some(UnitKind::BroilerDragon), Some(UnitKind::BroilerDragon)],
-            vec![Some(UnitKind::BroilerDragon), None],
+            LayoutLine {
+                units: vec![UnitKind::BroilerDragon],
+            },
+            LayoutLine {
+                units: vec![UnitKind::BroilerDragon, UnitKind::BroilerDragon],
+            },
         ];
         assert_eq!(grid, expected);
     }
