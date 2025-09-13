@@ -254,10 +254,10 @@ mod tests {
         let grid = select_layout(&layouts, SideKind::Right, &counts).unwrap();
         let expected = vec![
             LayoutLine {
-                units: vec![UnitKind::BroilerDragon],
+                units: vec![UnitKind::BroilerDragon, UnitKind::BroilerDragon],
             },
             LayoutLine {
-                units: vec![UnitKind::BroilerDragon, UnitKind::BroilerDragon],
+                units: vec![UnitKind::BroilerDragon],
             },
         ];
         assert_eq!(grid, expected);

@@ -203,6 +203,9 @@ struct Entity {
     cur_health: f64,
     can_target: Vec<UnitClass>,
     is_hero: bool,
+    // index into enemy/ally reading order to continue next round
+    next_enemy_idx: usize,
+    next_ally_idx: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -304,7 +307,10 @@ fn main() -> Result<()> {
                         .as_ref()
                         .map(|h| h.regen)
                         .unwrap_or(0.0);
-                    if regen > 0.0 && e.cur_health > 0.0 {
+                    if regen > 0.0
+                        && e.cur_health > 0.0
+                        && e.cur_health < e.base_health + e.bonus_health
+                    {
                         e.cur_health = (e.cur_health + regen).min(e.base_health + e.bonus_health);
                         events.push(format!(
                             "1. Hero #A{}.{} regenerates. Health +{:.2}. Now {:.2}",
@@ -379,7 +385,7 @@ fn main() -> Result<()> {
         }
 
         // Remove dead + note eliminations
-        collect_eliminations(&mut state, &mut eliminations);
+        let (att_dead, def_dead) = collect_eliminations(&mut state, &mut eliminations);
 
         // End-of-round summary lines
         for note in eliminations {
@@ -397,8 +403,15 @@ fn main() -> Result<()> {
             break;
         }
 
-        // Repack for next round (lines/slots may change)
-        repack_layouts(&mut state);
+        // Repack for next round if needed
+        if att_dead {
+            state.att.repack(&state.cfg, state.round, true);
+            state.def_.reset_memory();
+        }
+        if def_dead {
+            state.def_.repack(&state.cfg, state.round, false);
+            state.att.reset_memory();
+        }
     }
 
     Ok(())
@@ -456,6 +469,8 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                     def.can_target.clone()
                 },
                 is_hero: false,
+                next_enemy_idx: 0,
+                next_ally_idx: 0,
             };
             formation.entities.insert(eid, ent);
         }
@@ -484,6 +499,8 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 cur_health: base_hp + bonus_hp,
                 can_target: vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial],
                 is_hero: true,
+                next_enemy_idx: 0,
+                next_ally_idx: 0,
             };
             formation.entities.insert(eid, ent);
         }
@@ -575,6 +592,14 @@ impl Formation {
         }
 
         self.units = new_units;
+        self.reset_memory();
+    }
+
+    fn reset_memory(&mut self) {
+        for e in self.entities.values_mut() {
+            e.next_enemy_idx = 0;
+            e.next_ally_idx = 0;
+        }
     }
 }
 
@@ -746,13 +771,14 @@ fn healer_act(
     events: &mut Vec<String>,
     idx: &mut usize,
 ) -> bool {
-    let (side, heal_amt, range, line) = {
+    let (side, heal_amt, range, line, start_idx) = {
         let h = get_entity(state, healer_id);
         (
             h.side,
             h.heal.unwrap_or(0.0),
             h.heal_range.unwrap_or(0),
             h.line,
+            h.next_ally_idx,
         )
     };
     if heal_amt <= 0.0 {
@@ -791,10 +817,13 @@ fn healer_act(
     });
 
     let mut remaining = heal_amt;
-    for &wid in &wounded {
+    let wlen = wounded.len();
+    let mut processed = 0;
+    for i in 0..wlen {
         if remaining <= 0.0 {
             break;
         }
+        let wid = wounded[(start_idx + i) % wlen];
         let e0 = get_entity(state, wid).clone();
         let need = (e0.base_health + e0.bonus_health - e0.cur_health).max(0.0);
         if need <= 0.0 {
@@ -830,8 +859,15 @@ fn healer_act(
         ));
         *idx += 1;
         remaining -= apply;
+        processed = i + 1;
         if !state.cfg.rules.healer_spillover {
             break;
+        }
+    }
+    {
+        let h = get_entity_mut(state, healer_id);
+        if wlen > 0 {
+            h.next_ally_idx = (start_idx + processed) % wlen;
         }
     }
     true
@@ -845,7 +881,7 @@ fn attacker_act(
     policy: TargetingPolicy,
 ) -> bool {
     // Snapshot attacker properties first
-    let (side, line, range, atk_opt, kind, traits, can_target) = {
+    let (side, line, range, atk_opt, kind, traits, can_target, start_idx) = {
         let a = get_entity(state, attacker_id);
         (
             a.side,
@@ -855,6 +891,7 @@ fn attacker_act(
             a.kind,
             a.traits.clone(),
             a.can_target.clone(),
+            a.next_enemy_idx,
         )
     };
     let atk = if let Some(v) = atk_opt {
@@ -884,36 +921,33 @@ fn attacker_act(
         return false;
     }
 
-    // Choose target per policy
-    let target_eid = match policy {
+    // Sort candidates per policy
+    cands.sort_by(|a, b| match policy {
         TargetingPolicy::LowestHealth => {
-            cands
-                .into_iter()
-                .min_by(|a, b| {
-                    let ea = get_entity(state, a.1);
-                    let eb = get_entity(state, b.1);
-                    ea.cur_health
-                        .partial_cmp(&eb.cur_health)
-                        .unwrap_or(Ordering::Equal)
-                        .then_with(|| a.0.cmp(&b.0))
-                        .then_with(|| (ea.line, ea.slot).cmp(&(eb.line, eb.slot)))
-                })
-                .unwrap()
-                .1
+            let ea = get_entity(state, a.1);
+            let eb = get_entity(state, b.1);
+            ea.cur_health
+                .partial_cmp(&eb.cur_health)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+                .then_with(|| (ea.line, ea.slot).cmp(&(eb.line, eb.slot)))
         }
         TargetingPolicy::ClosestThenReadingOrder => {
-            cands
-                .into_iter()
-                .min_by(|a, b| {
-                    let ea = get_entity(state, a.1);
-                    let eb = get_entity(state, b.1);
-                    a.0.cmp(&b.0)
-                        .then_with(|| (ea.line, ea.slot).cmp(&(eb.line, eb.slot)))
-                })
-                .unwrap()
-                .1
+            let ea = get_entity(state, a.1);
+            let eb = get_entity(state, b.1);
+            a.0.cmp(&b.0)
+                .then_with(|| (ea.line, ea.slot).cmp(&(eb.line, eb.slot)))
         }
-    };
+    });
+
+    let start = start_idx % cands.len();
+    let target_eid = cands[start].1;
+
+    // update attacker memory
+    {
+        let a = get_entity_mut(state, attacker_id);
+        a.next_enemy_idx = (start + 1) % cands.len();
+    }
 
     // Attack bonus vs traits from unit definition (flat add)
     let (target_traits, def_val, t_kind, t_side, t_line, t_slot) = {
@@ -982,16 +1016,20 @@ fn side_char(s: Side) -> char {
     }
 }
 
-fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
+fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) -> (bool, bool) {
     // Scan both sides for 0 HP
     let mut gone: Vec<(Side, usize, usize, UnitKind)> = vec![];
+    let mut att_dead = false;
+    let mut def_dead = false;
     for e in state.att.entities.values() {
         if e.cur_health <= 0.0 {
+            att_dead = true;
             gone.push((Side::Attacker, e.line, e.slot, e.kind));
         }
     }
     for e in state.def_.entities.values() {
         if e.cur_health <= 0.0 {
+            def_dead = true;
             gone.push((Side::Defender, e.line, e.slot, e.kind));
         }
     }
@@ -1013,13 +1051,15 @@ fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
     // Remove dead
     state.att.entities.retain(|_, e| e.cur_health > 0.0);
     state.def_.entities.retain(|_, e| e.cur_health > 0.0);
+
+    (att_dead, def_dead)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn add_unit(form: &mut Formation, kind: UnitKind, is_hero: bool) {
+    fn add_unit(form: &mut Formation, kind: UnitKind, is_hero: bool) -> EntityId {
         let id = form.alloc_id();
         let ent = Entity {
             id,
@@ -1039,8 +1079,11 @@ mod tests {
             cur_health: 1.0,
             can_target: vec![],
             is_hero,
+            next_enemy_idx: 0,
+            next_ally_idx: 0,
         };
         form.entities.insert(id, ent);
+        id
     }
 
     #[test]
@@ -1072,18 +1115,18 @@ mod tests {
         let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
-            add_unit(&mut form, UnitKind::Horseman, false);
+            let _ = add_unit(&mut form, UnitKind::Horseman, false);
         }
         for _ in 0..4 {
-            add_unit(&mut form, UnitKind::Crossbowman, false);
+            let _ = add_unit(&mut form, UnitKind::Crossbowman, false);
         }
         for _ in 0..9 {
-            add_unit(&mut form, UnitKind::SisterOfMercy, false);
+            let _ = add_unit(&mut form, UnitKind::SisterOfMercy, false);
         }
         for _ in 0..3 {
-            add_unit(&mut form, UnitKind::SageLvl3, false);
+            let _ = add_unit(&mut form, UnitKind::SageLvl3, false);
         }
-        add_unit(&mut form, UnitKind::Hero, true);
+        let _ = add_unit(&mut form, UnitKind::Hero, true);
 
         form.repack(&cfg, 1, true);
 
@@ -1100,5 +1143,268 @@ mod tests {
 
         assert_eq!(kinds, expected);
         assert_eq!(form.entities.len(), 35);
+    }
+
+    #[test]
+    fn dragons_progress_without_repack() {
+        // setup minimal battle state with 2 horsemen and 3 dragons
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![UnitKind::Horseman, UnitKind::Horseman],
+        }];
+        let def_template = vec![LayoutLine {
+            units: vec![
+                UnitKind::BroilerDragon,
+                UnitKind::BroilerDragon,
+                UnitKind::BroilerDragon,
+            ],
+        }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let h1 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let h2 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let d1 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+        let d2 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+        let d3 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+
+        for &hid in &[h1, h2] {
+            let e = state.att.entities.get_mut(&hid).unwrap();
+            e.base_health = 10.0;
+            e.cur_health = 10.0;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+        for &did in &[d1, d2, d3] {
+            let e = state.def_.entities.get_mut(&did).unwrap();
+            e.attack = Some(3.0);
+            e.range = 10;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+
+        state.att.repack(&state.cfg, 0, true);
+        state.def_.repack(&state.cfg, 0, false);
+
+        // first round
+        let mut events = vec![];
+        let mut idx = 1;
+        let def_ids = state.def_.units[0].units.clone();
+        for eid in def_ids {
+            let _ = attacker_act(
+                &mut state,
+                eid,
+                &mut events,
+                &mut idx,
+                TargetingPolicy::ClosestThenReadingOrder,
+            );
+        }
+        let h1_after = state.att.entities.get(&h1).unwrap().cur_health;
+        let h2_after = state.att.entities.get(&h2).unwrap().cur_health;
+        assert!(h1_after < h2_after);
+
+        // second round without repack
+        let def_ids = state.def_.units[0].units.clone();
+        for eid in def_ids {
+            let _ = attacker_act(
+                &mut state,
+                eid,
+                &mut events,
+                &mut idx,
+                TargetingPolicy::ClosestThenReadingOrder,
+            );
+        }
+        let h1_final = state.att.entities.get(&h1).unwrap().cur_health;
+        let h2_final = state.att.entities.get(&h2).unwrap().cur_health;
+        assert_eq!(h1_final, h1_after);
+        assert!(h2_final < h2_after);
+    }
+
+    #[test]
+    fn dragons_reset_after_repack() {
+        // one dragon vs three horsemen where first dies triggering repack
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![UnitKind::Horseman, UnitKind::Horseman, UnitKind::Horseman],
+        }];
+        let def_template = vec![LayoutLine {
+            units: vec![UnitKind::BroilerDragon],
+        }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let h1 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let h2 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let h3 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let d1 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+
+        for &hid in &[h1, h2, h3] {
+            let e = state.att.entities.get_mut(&hid).unwrap();
+            e.base_health = 10.0;
+            e.cur_health = 10.0;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+        {
+            let e = state.def_.entities.get_mut(&d1).unwrap();
+            e.attack = Some(12.0);
+            e.range = 10;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+
+        state.att.repack(&state.cfg, 0, true);
+        state.def_.repack(&state.cfg, 0, false);
+
+        // round1 - dragon kills first horseman
+        let mut events = vec![];
+        let mut idx = 1;
+        let def_ids = state.def_.units[0].units.clone();
+        let _ = attacker_act(
+            &mut state,
+            def_ids[0],
+            &mut events,
+            &mut idx,
+            TargetingPolicy::ClosestThenReadingOrder,
+        );
+
+        let h2_before = state.att.entities.get(&h2).unwrap().cur_health;
+        let h3_before = state.att.entities.get(&h3).unwrap().cur_health;
+
+        // eliminate dead and repack
+        let mut notes = vec![];
+        let (att_dead, _) = collect_eliminations(&mut state, &mut notes);
+        assert!(att_dead);
+        if att_dead {
+            state.att.repack(&state.cfg, 1, true);
+            state.def_.reset_memory();
+        }
+
+        // round2 - dragon should attack new first (old h2)
+        let def_ids = state.def_.units[0].units.clone();
+        let _ = attacker_act(
+            &mut state,
+            def_ids[0],
+            &mut events,
+            &mut idx,
+            TargetingPolicy::ClosestThenReadingOrder,
+        );
+
+        let h2_after = state.att.entities.get(&h2).unwrap().cur_health;
+        let h3_after = state.att.entities.get(&h3).unwrap().cur_health;
+        assert!(h2_after < h2_before);
+        assert_eq!(h3_after, h3_before);
+    }
+
+    #[test]
+    fn healer_ignores_dead_units() {
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::SisterOfMercy,
+            ],
+        }];
+        let def_template = vec![LayoutLine {
+            units: vec![UnitKind::BroilerDragon],
+        }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let h1 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let h2 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let sis = add_unit(&mut state.att, UnitKind::SisterOfMercy, false);
+        let dr = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+
+        for &hid in &[h1, h2] {
+            let e = state.att.entities.get_mut(&hid).unwrap();
+            e.base_health = 5.0;
+            e.cur_health = 5.0;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+        {
+            let e = state.att.entities.get_mut(&sis).unwrap();
+            e.heal = Some(3.0);
+            e.heal_range = Some(1);
+        }
+        {
+            let e = state.def_.entities.get_mut(&dr).unwrap();
+            e.attack = Some(10.0);
+            e.range = 10;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+
+        state.att.repack(&state.cfg, 0, true);
+        state.def_.repack(&state.cfg, 0, false);
+
+        let mut events = vec![];
+        let mut idx = 1;
+        // dragon kills first horseman
+        let def_ids = state.def_.units[0].units.clone();
+        let _ = attacker_act(
+            &mut state,
+            def_ids[0],
+            &mut events,
+            &mut idx,
+            TargetingPolicy::ClosestThenReadingOrder,
+        );
+
+        // sister tries to heal but should ignore dead horseman
+        let att_ids = state.att.units[0].units.clone();
+        let sis_id = att_ids[2];
+        let _ = healer_act(&mut state, sis_id, &mut events, &mut idx);
+
+        assert_eq!(state.att.entities.get(&h1).unwrap().cur_health, 0.0);
     }
 }
