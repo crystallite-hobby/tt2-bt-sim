@@ -7,7 +7,9 @@ use serde::Deserialize;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
-use tt2_bt_sim::layouts::{canonicalize_counts, parse_layouts, select_layout, SideKind};
+use tt2_bt_sim::layouts::{
+    canonicalize_counts, parse_layouts, select_layout, LayoutLine, SideKind,
+};
 use tt2_bt_sim::types::{AppliesTo, BuildingName, TargetingPolicy, Trait, UnitClass, UnitKind};
 
 #[derive(Parser, Debug)]
@@ -166,7 +168,7 @@ struct BattleState {
 struct Formation {
     /// All alive entities in reading order (Line asc, Slot asc). Repacked per round.
     grid: Vec<Vec<EntityId>>, // lines -> slots -> entity id
-    template: Vec<Vec<Option<UnitKind>>>,
+    template: Vec<LayoutLine>,
     canon_names: Vec<UnitKind>,
     entities: BTreeMap<EntityId, Entity>,
     next_local_id: usize,
@@ -489,10 +491,10 @@ fn repack_layouts(state: &mut BattleState) {
 }
 
 impl Formation {
-    fn new(side: Side, side_mods: SideModifiers, template: Vec<Vec<Option<UnitKind>>>) -> Self {
+    fn new(side: Side, side_mods: SideModifiers, template: Vec<LayoutLine>) -> Self {
         let mut set = BTreeSet::new();
-        for row in &template {
-            for &kind in row.iter().flatten() {
+        for line in &template {
+            for &kind in &line.units {
                 set.insert(kind);
             }
         }
@@ -534,19 +536,17 @@ impl Formation {
         }
 
         let mut new_grid: Vec<Vec<EntityId>> = vec![vec![]; self.template.len()];
-        for (li, row) in self.template.iter().enumerate() {
+        for (li, line) in self.template.iter().enumerate() {
             let mut ids: Vec<EntityId> = vec![];
-            for (si, cell) in row.iter().enumerate() {
-                if let Some(kind) = cell {
-                    if let Some(bucket) = buckets.get_mut(kind) {
-                        if let Some(e) = bucket.pop_front() {
-                            if let Some(mut origin) = self.entities.remove(&e.id) {
-                                origin.line = li + 1;
-                                origin.slot = si + 1;
-                                let eid = origin.id;
-                                ids.push(eid);
-                                self.entities.insert(eid, origin);
-                            }
+            for (si, &kind) in line.units.iter().enumerate() {
+                if let Some(bucket) = buckets.get_mut(&kind) {
+                    if let Some(e) = bucket.pop_front() {
+                        if let Some(mut origin) = self.entities.remove(&e.id) {
+                            origin.line = li + 1;
+                            origin.slot = si + 1;
+                            let eid = origin.id;
+                            ids.push(eid);
+                            self.entities.insert(eid, origin);
                         }
                     }
                 }
@@ -613,17 +613,24 @@ fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
         SideKind::Left => &state.att.grid,
         SideKind::Right => &state.def_.grid,
     };
-    grid.iter()
-        .map(|row| {
-            let es = match s {
-                SideKind::Left => row.iter().collect::<Vec<_>>(),
-                SideKind::Right => row.iter().rev().collect::<Vec<_>>(),
-            };
-            es.into_iter()
-                .map(|e| get_entity(state, *e).kind.abbr())
-                .join("")
-        })
-        .collect::<Vec<_>>()
+    let max_slots = grid.iter().map(|line| line.len()).max().unwrap_or(0);
+    let mut rows: Vec<String> = Vec::new();
+    for si in 0..max_slots {
+        let lines_iter: Box<dyn Iterator<Item = &Vec<EntityId>>> = match s {
+            SideKind::Left => Box::new(grid.iter().rev()),
+            SideKind::Right => Box::new(grid.iter()),
+        };
+        let mut row = String::new();
+        for line in lines_iter {
+            if let Some(eid) = line.get(si) {
+                row.push_str(get_entity(state, *eid).kind.abbr());
+            } else {
+                row.push_str("..");
+            }
+        }
+        rows.push(row);
+    }
+    rows
 }
 
 fn print_layouts(state: &BattleState) {
@@ -1034,6 +1041,8 @@ mod tests {
         ];
         let counts = canonicalize_counts(&raw_counts);
         let template = select_layout(&layouts, SideKind::Left, &counts).unwrap();
+        let expected: Vec<Vec<UnitKind>> =
+            template.iter().map(|line| line.units.clone()).collect();
         let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
@@ -1057,60 +1066,10 @@ mod tests {
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|eid| form.entities.get(eid).unwrap().kind)
+                    .map(|eid| form.entities.get(eid).unwrap().kind.canonical())
                     .collect::<Vec<_>>()
             })
             .collect();
-
-        let expected: Vec<Vec<UnitKind>> = vec![
-            vec![
-                UnitKind::Crossbowman,
-                UnitKind::Crossbowman,
-                UnitKind::SageLvl3,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-            ],
-            vec![
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-                UnitKind::SisterOfMercy,
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-            ],
-            vec![
-                UnitKind::SageLvl3,
-                UnitKind::SisterOfMercy,
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-            ],
-            vec![
-                UnitKind::Horseman,
-                UnitKind::SageLvl3,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-                UnitKind::Horseman,
-            ],
-            vec![
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-                UnitKind::SisterOfMercy,
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-                UnitKind::Hero,
-            ],
-            vec![
-                UnitKind::Crossbowman,
-                UnitKind::SisterOfMercy,
-                UnitKind::Horseman,
-                UnitKind::Crossbowman,
-                UnitKind::Horseman,
-            ],
-        ];
 
         assert_eq!(kinds, expected);
         assert_eq!(form.entities.len(), 35);
