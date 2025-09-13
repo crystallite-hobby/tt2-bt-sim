@@ -8,6 +8,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::fs;
 use tt2_bt_sim::layouts::{canonicalize_counts, parse_layouts, select_layout, SideKind};
+use tt2_bt_sim::types::{AppliesTo, BuildingName, TargetingPolicy, Trait, UnitClass, UnitKind};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -35,26 +36,26 @@ fn one() -> f64 {
     1.0
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 struct Building {
-    name: String,
+    name: BuildingName,
     #[serde(default)]
     health_bonus: f64,
     #[serde(default)]
-    applies_to: String, // "attacker" | "defender" | "both"
+    applies_to: AppliesTo,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 struct CountedUnit {
-    kind: String,
+    kind: UnitKind,
     count: usize,
     #[serde(default)]
-    traits: Vec<String>,
+    traits: Vec<Trait>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 struct HeroDef {
-    name: String,
+    name: UnitKind,
     attack: f64,
     range: usize,
     defense: f64,
@@ -62,10 +63,10 @@ struct HeroDef {
     #[serde(default)]
     regen: f64,
     #[serde(default = "default_hero_policy")]
-    prioritize: String, // "lowest_health" | "closest_then_reading_order"
+    prioritize: TargetingPolicy,
 }
-fn default_hero_policy() -> String {
-    "lowest_health".to_string()
+fn default_hero_policy() -> TargetingPolicy {
+    TargetingPolicy::LowestHealth
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -77,7 +78,7 @@ struct ArmyConfig {
     side_mods: SideModifiers,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 struct RulesConfig {
     #[serde(default = "default_max_rounds")]
     max_rounds: usize,
@@ -86,7 +87,7 @@ struct RulesConfig {
     #[serde(default)]
     healer_spillover: bool,
     #[serde(default = "default_targeting")]
-    targeting: String,
+    targeting: TargetingPolicy,
 }
 fn default_true() -> bool {
     true
@@ -94,13 +95,24 @@ fn default_true() -> bool {
 fn default_max_rounds() -> usize {
     50
 }
-fn default_targeting() -> String {
-    "closest_then_reading_order".to_string()
+fn default_targeting() -> TargetingPolicy {
+    TargetingPolicy::ClosestThenReadingOrder
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+impl Default for RulesConfig {
+    fn default() -> Self {
+        Self {
+            max_rounds: default_max_rounds(),
+            defender_acts_first: default_true(),
+            healer_spillover: false,
+            targeting: default_targeting(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct BattleConfig {
-    units: HashMap<String, UnitDef>,
+    units: HashMap<UnitKind, UnitDef>,
     attacker: ArmyConfig,
     defender: ArmyConfig,
     #[serde(default)]
@@ -109,10 +121,9 @@ struct BattleConfig {
     rules: RulesConfig,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 struct UnitDef {
-    name: Option<String>,
-    class: String, // "land" | "naval" | "aerial"
+    class: UnitClass, // "land" | "naval" | "aerial"
     #[serde(default)]
     attack: Option<f64>,
     #[serde(default)]
@@ -127,18 +138,18 @@ struct UnitDef {
     #[allow(dead_code)]
     size: u8,
     #[serde(default)]
-    can_target: Vec<String>,
+    can_target: Vec<UnitClass>,
     #[serde(default)]
     bonus_vs: Vec<BonusRule>,
     #[serde(default)]
     #[allow(dead_code)]
-    traits: Vec<String>,
+    traits: Vec<Trait>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 struct BonusRule {
-    when: Vec<String>, // require all traits present to apply
-    add: f64,          // flat bonus added to attack
+    when: Vec<Trait>, // require all traits present to apply
+    add: f64,         // flat bonus added to attack
 }
 
 #[derive(Debug, Clone)]
@@ -155,8 +166,8 @@ struct BattleState {
 struct Formation {
     /// All alive entities in reading order (Line asc, Slot asc). Repacked per round.
     grid: Vec<Vec<EntityId>>, // lines -> slots -> entity id
-    template: Vec<Vec<Option<String>>>,
-    canon_names: Vec<String>,
+    template: Vec<Vec<Option<UnitKind>>>,
+    canon_names: Vec<UnitKind>,
     entities: BTreeMap<EntityId, Entity>,
     next_local_id: usize,
     side: Side,
@@ -170,11 +181,11 @@ struct EntityId(u64);
 struct Entity {
     id: EntityId,
     side: Side,
-    line: usize,  // 1-based within current layout
-    slot: usize,  // 1-based within current layout
-    kind: String, // e.g. "Horseman" | "SisterOfMercy" | "Hero"
-    class: String,
-    traits: Vec<String>,
+    line: usize,    // 1-based within current layout
+    slot: usize,    // 1-based within current layout
+    kind: UnitKind, // e.g. Horseman | SisterOfMercy | Hero
+    class: UnitClass,
+    traits: Vec<Trait>,
     attack: Option<f64>,
     range: usize,
     heal: Option<f64>,
@@ -183,7 +194,7 @@ struct Entity {
     base_health: f64,
     bonus_health: f64,
     cur_health: f64,
-    can_target: Vec<String>,
+    can_target: Vec<UnitClass>,
     is_hero: bool,
 }
 
@@ -199,40 +210,40 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let text =
         fs::read_to_string(&cli.file).with_context(|| format!("Failed to read {}", cli.file))?;
-    let mut cfg: BattleConfig =
+    let cfg: BattleConfig =
         serde_json::from_str(&text).with_context(|| "Invalid JSON battle config")?;
-
-    normalize_defs(&mut cfg);
 
     let def_building_hp_bonus = cfg
         .buildings
         .iter()
-        .filter(|b| b.health_bonus > 0.0 && (b.applies_to == "defender" || b.applies_to == "both"))
+        .filter(|b| {
+            b.health_bonus > 0.0 && matches!(b.applies_to, AppliesTo::Defender | AppliesTo::Both)
+        })
         .map(|b| b.health_bonus)
         .sum::<f64>();
 
-    let (abbr_map, layouts) = parse_layouts("layouts.dat")?;
+    let layouts = parse_layouts("layouts.dat")?;
 
-    let mut att_counts_raw: Vec<(String, usize)> = cfg
+    let mut att_counts_raw: Vec<(UnitKind, usize)> = cfg
         .attacker
         .roster
         .iter()
-        .map(|cu| (cu.kind.clone(), cu.count))
+        .map(|cu| (cu.kind, cu.count))
         .collect();
     if let Some(h) = &cfg.attacker.hero {
-        att_counts_raw.push((h.name.clone(), 1));
+        att_counts_raw.push((h.name, 1));
     }
-    let att_counts = canonicalize_counts(&att_counts_raw, &abbr_map);
+    let att_counts = canonicalize_counts(&att_counts_raw);
     let att_template = select_layout(&layouts, SideKind::Left, &att_counts)
         .ok_or_else(|| anyhow!("No matching layout for attacker"))?;
 
-    let def_counts_raw: Vec<(String, usize)> = cfg
+    let def_counts_raw: Vec<(UnitKind, usize)> = cfg
         .defender
         .roster
         .iter()
-        .map(|cu| (cu.kind.clone(), cu.count))
+        .map(|cu| (cu.kind, cu.count))
         .collect();
-    let def_counts = canonicalize_counts(&def_counts_raw, &abbr_map);
+    let def_counts = canonicalize_counts(&def_counts_raw);
     let def_template = select_layout(&layouts, SideKind::Right, &def_counts)
         .ok_or_else(|| anyhow!("No matching layout for defender"))?;
 
@@ -263,7 +274,7 @@ fn main() -> Result<()> {
         }
 
         println!("\n## Round {}\n", state.round);
-        print_layouts(&state, &abbr_map);
+        print_layouts(&state);
 
         let mut events: Vec<String> = vec![];
         let mut eliminations: Vec<String> = vec![];
@@ -329,14 +340,14 @@ fn main() -> Result<()> {
                             .attacker
                             .hero
                             .as_ref()
-                            .map(|h| h.prioritize.clone())
+                            .map(|h| h.prioritize)
                             .unwrap_or(default_hero_policy())
                     } else {
-                        state.cfg.rules.targeting.clone()
+                        state.cfg.rules.targeting
                     };
 
                     let _acted =
-                        attacker_act(&mut state, eid, &mut events, &mut action_index, &policy);
+                        attacker_act(&mut state, eid, &mut events, &mut action_index, policy);
                 }
             }
         }
@@ -377,17 +388,6 @@ fn main() -> Result<()> {
 
 // --------------------------- Core mechanics ---------------------------
 
-fn normalize_defs(cfg: &mut BattleConfig) {
-    for (k, v) in cfg.units.clone() {
-        // ensure name exists
-        let mut u = v;
-        if u.name.is_none() {
-            u.name = Some(k.clone());
-        }
-        cfg.units.insert(k, u);
-    }
-}
-
 fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
     let acfg = match side {
         Side::Attacker => &state.cfg.attacker,
@@ -405,7 +405,7 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
             .cfg
             .units
             .get(&cu.kind)
-            .with_context(|| format!("Unknown unit kind '{}'", cu.kind))?
+            .with_context(|| format!("Unknown unit kind '{}'", cu.kind.name()))?
             .clone();
         for _ in 0..cu.count {
             let eid = formation.alloc_id();
@@ -421,8 +421,8 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 side,
                 line: 0,
                 slot: 0,
-                kind: def.name.clone().unwrap_or(cu.kind.clone()),
-                class: def.class.clone(),
+                kind: cu.kind,
+                class: def.class,
                 traits: cu.traits.clone(),
                 attack: def.attack.map(|a| a * acfg.side_mods.attack_mult),
                 range: def.range,
@@ -433,7 +433,7 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 bonus_health: bonus_hp,
                 cur_health: base_hp + bonus_hp,
                 can_target: if def.can_target.is_empty() {
-                    vec!["land".into(), "naval".into(), "aerial".into()]
+                    vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial]
                 } else {
                     def.can_target.clone()
                 },
@@ -453,9 +453,9 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 side,
                 line: 0,
                 slot: 0,
-                kind: h.name.clone(),
-                class: "land".into(),
-                traits: vec!["hero".into()],
+                kind: h.name,
+                class: UnitClass::Land,
+                traits: vec![Trait::Hero],
                 attack: Some(h.attack),
                 range: h.range,
                 heal: None,
@@ -464,7 +464,7 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 base_health: base_hp,
                 bonus_health: bonus_hp,
                 cur_health: base_hp + bonus_hp,
-                can_target: vec!["land".into(), "naval".into(), "aerial".into()],
+                can_target: vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial],
                 is_hero: true,
             };
             formation.entities.insert(eid, ent);
@@ -489,11 +489,11 @@ fn repack_layouts(state: &mut BattleState) {
 }
 
 impl Formation {
-    fn new(side: Side, side_mods: SideModifiers, template: Vec<Vec<Option<String>>>) -> Self {
+    fn new(side: Side, side_mods: SideModifiers, template: Vec<Vec<Option<UnitKind>>>) -> Self {
         let mut set = BTreeSet::new();
         for row in &template {
-            for name in row.iter().flatten() {
-                set.insert(name.clone());
+            for &kind in row.iter().flatten() {
+                set.insert(kind);
             }
         }
         Self {
@@ -512,24 +512,24 @@ impl Formation {
         self.next_local_id += 1;
         EntityId(((self.side as u64) << 56) | id)
     }
-    fn canonicalize(&self, name: &str) -> String {
-        for c in &self.canon_names {
-            if name.starts_with(c) {
-                return c.clone();
-            }
+    fn canonicalize(&self, kind: UnitKind) -> UnitKind {
+        let ck = kind.canonical();
+        if self.canon_names.contains(&ck) {
+            ck
+        } else {
+            kind
         }
-        name.to_string()
     }
 
     fn repack(&mut self, _cfg: &BattleConfig, _round: usize, _is_attacker: bool) {
-        let mut buckets: HashMap<String, VecDeque<Entity>> = HashMap::new();
+        let mut buckets: HashMap<UnitKind, VecDeque<Entity>> = HashMap::new();
         for e in self
             .entities
             .values()
             .filter(|e| e.cur_health > 0.0)
             .cloned()
         {
-            let key = self.canonicalize(&e.kind);
+            let key = self.canonicalize(e.kind);
             buckets.entry(key).or_default().push_back(e);
         }
 
@@ -563,19 +563,19 @@ impl Formation {
 }
 
 fn print_header(state: &BattleState) {
-    let att_units: HashMap<&str, usize> = aggregate_kinds(&state.att);
-    let def_units: HashMap<&str, usize> = aggregate_kinds(&state.def_);
+    let att_units: HashMap<UnitKind, usize> = aggregate_kinds(&state.att);
+    let def_units: HashMap<UnitKind, usize> = aggregate_kinds(&state.def_);
 
     println!("# Attack report (simulated)\n");
     println!("## Armies\n");
     println!("Attacking army:");
-    for (k, v) in att_units.iter().sorted_by_key(|(k, _)| *k) {
-        println!("{}x{}", v, k);
+    for (k, v) in att_units.iter().sorted_by_key(|(k, _)| k.name()) {
+        println!("{}x{}", v, k.name());
     }
     println!("-- total {} units\n", state.att.entities.len());
     println!("Defending army:");
-    for (k, v) in def_units.iter().sorted_by_key(|(k, _)| *k) {
-        println!("{}x{}", v, k);
+    for (k, v) in def_units.iter().sorted_by_key(|(k, _)| k.name()) {
+        println!("{}x{}", v, k.name());
     }
     println!("-- total {} units\n", state.def_.entities.len());
 
@@ -598,31 +598,17 @@ fn print_header(state: &BattleState) {
     }
 }
 
-fn aggregate_kinds(form: &Formation) -> HashMap<&str, usize> {
-    let mut m: HashMap<&str, usize> = HashMap::new();
+fn aggregate_kinds(form: &Formation) -> HashMap<UnitKind, usize> {
+    let mut m: HashMap<UnitKind, usize> = HashMap::new();
     for e in form.entities.values() {
         if e.cur_health > 0.0 {
-            *m.entry(&e.kind).or_default() += 1;
+            *m.entry(e.kind).or_default() += 1;
         }
     }
     m
 }
 
-fn find_key_for_value(map: &HashMap<String, String>, value: &str) -> Option<String> {
-    map.iter().find_map(|(key, val)| {
-        if val.as_str() == value {
-            Some(key.clone())
-        } else {
-            None
-        }
-    })
-}
-
-fn grid_to_text_rows(
-    s: SideKind,
-    state: &BattleState,
-    abbr_map: &HashMap<String, String>,
-) -> Vec<String> {
+fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
     let grid = match s {
         SideKind::Left => &state.att.grid,
         SideKind::Right => &state.def_.grid,
@@ -634,22 +620,15 @@ fn grid_to_text_rows(
                 SideKind::Right => row.iter().rev().collect::<Vec<_>>(),
             };
             es.into_iter()
-                .map(|e| {
-                    let unit_title = &get_entity(state, *e).kind;
-                    let unit_abbr = find_key_for_value(abbr_map, unit_title).expect(&format!(
-                        "Unknown title: {}. Map is: {:?}",
-                        unit_title, abbr_map
-                    ));
-                    unit_abbr
-                })
+                .map(|e| get_entity(state, *e).kind.abbr())
                 .join("")
         })
         .collect::<Vec<_>>()
 }
 
-fn print_layouts(state: &BattleState, abbr_map: &HashMap<String, String>) {
-    let att_text_rows = grid_to_text_rows(SideKind::Left, &state, abbr_map);
-    let def_text_rows = grid_to_text_rows(SideKind::Right, &state, abbr_map);
+fn print_layouts(state: &BattleState) {
+    let att_text_rows = grid_to_text_rows(SideKind::Left, &state);
+    let def_text_rows = grid_to_text_rows(SideKind::Right, &state);
 
     use itertools::EitherOrBoth::*;
     for pair in att_text_rows
@@ -678,7 +657,7 @@ fn print_layouts(state: &BattleState, abbr_map: &HashMap<String, String>) {
                 "    - Unit #A{}.{}: {} {} health",
                 li + 1,
                 si + 1,
-                e.kind,
+                e.kind.name(),
                 hp_str
             );
         }
@@ -700,7 +679,7 @@ fn print_layouts(state: &BattleState, abbr_map: &HashMap<String, String>) {
                 "    - Unit #D{}.{}: {} {} health",
                 li + 1,
                 si + 1,
-                e.kind,
+                e.kind.name(),
                 hp_str
             );
         }
@@ -791,23 +770,23 @@ fn healer_act(
 
         let healer_info = {
             let h = get_entity(state, healer_id);
-            (h.kind.clone(), h.side, h.line, h.slot)
+            (h.kind, h.side, h.line, h.slot)
         };
 
         let (target_kind, target_side, target_line, target_slot, new_health) = {
             let e = get_entity_mut(state, wid);
             e.cur_health += apply;
-            (e.kind.clone(), e.side, e.line, e.slot, e.cur_health)
+            (e.kind, e.side, e.line, e.slot, e.cur_health)
         };
 
         events.push(format!(
             "{}. {} #{}{}.{} heals {} #{}{}.{} ({:.2}) => +{:.2}. Now {:.2}",
             *idx,
-            healer_info.0,
+            healer_info.0.name(),
             side_char(healer_info.1),
             healer_info.2,
             healer_info.3,
-            target_kind,
+            target_kind.name(),
             side_char(target_side),
             target_line,
             target_slot,
@@ -829,7 +808,7 @@ fn attacker_act(
     attacker_id: EntityId,
     events: &mut Vec<String>,
     idx: &mut usize,
-    policy: &str,
+    policy: TargetingPolicy,
 ) -> bool {
     // Snapshot attacker properties first
     let (side, line, range, atk_opt, kind, traits, can_target) = {
@@ -839,7 +818,7 @@ fn attacker_act(
             a.line,
             a.range,
             a.attack,
-            a.kind.clone(),
+            a.kind,
             a.traits.clone(),
             a.can_target.clone(),
         )
@@ -873,7 +852,7 @@ fn attacker_act(
 
     // Choose target per policy
     let target_eid = match policy {
-        "lowest_health" => {
+        TargetingPolicy::LowestHealth => {
             cands
                 .into_iter()
                 .min_by(|a, b| {
@@ -888,8 +867,7 @@ fn attacker_act(
                 .unwrap()
                 .1
         }
-        _ => {
-            // closest_then_reading_order
+        TargetingPolicy::ClosestThenReadingOrder => {
             cands
                 .into_iter()
                 .min_by(|a, b| {
@@ -906,16 +884,9 @@ fn attacker_act(
     // Attack bonus vs traits from unit definition (flat add)
     let (target_traits, def_val, t_kind, t_side, t_line, t_slot) = {
         let t = get_entity(state, target_eid);
-        (
-            t.traits.clone(),
-            t.defense,
-            t.kind.clone(),
-            t.side,
-            t.line,
-            t.slot,
-        )
+        (t.traits.clone(), t.defense, t.kind, t.side, t.line, t.slot)
     };
-    let atk_val = atk + attack_bonus_vs(&traits, &target_traits, &state.cfg.units, &kind);
+    let atk_val = atk + attack_bonus_vs(&traits, &target_traits, &state.cfg.units, kind);
     let dmg = -(atk_val * atk_val) / (atk_val + def_val);
 
     // Apply damage
@@ -928,16 +899,16 @@ fn attacker_act(
     // Log event
     let (src_kind, src_side, src_line, src_slot) = {
         let src = get_entity(state, attacker_id);
-        (src.kind.clone(), src.side, src.line, src.slot)
+        (src.kind, src.side, src.line, src.slot)
     };
     events.push(format!(
         "{}. {} #{}{}.{} attacks {} #{}{}.{}. Attack {:.2} vs Defense {:.2} => damage {:+.2}. {} now {:.2}",
         *idx,
-        src_kind,
+        src_kind.name(),
         side_char(src_side), src_line, src_slot,
-        t_kind, side_char(t_side), t_line, t_slot,
+        t_kind.name(), side_char(t_side), t_line, t_slot,
         atk_val, def_val, dmg,
-        t_kind, new_health
+        t_kind.name(), new_health
     ));
     *idx += 1;
 
@@ -945,15 +916,15 @@ fn attacker_act(
 }
 
 fn attack_bonus_vs(
-    _attacker_traits: &[String],
-    target_traits: &[String],
-    units: &HashMap<String, UnitDef>,
-    kind: &str,
+    _attacker_traits: &[Trait],
+    target_traits: &[Trait],
+    units: &HashMap<UnitKind, UnitDef>,
+    kind: UnitKind,
 ) -> f64 {
-    if let Some(def) = units.get(kind) {
+    if let Some(def) = units.get(&kind) {
         let mut add = 0.0;
         for br in &def.bonus_vs {
-            if br.when.iter().all(|w| target_traits.iter().any(|t| t == w)) {
+            if br.when.iter().all(|w| target_traits.contains(w)) {
                 add += br.add;
             }
         }
@@ -979,15 +950,15 @@ fn side_char(s: Side) -> char {
 
 fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
     // Scan both sides for 0 HP
-    let mut gone: Vec<(Side, usize, usize, String)> = vec![];
+    let mut gone: Vec<(Side, usize, usize, UnitKind)> = vec![];
     for e in state.att.entities.values() {
         if e.cur_health <= 0.0 {
-            gone.push((Side::Attacker, e.line, e.slot, e.kind.clone()));
+            gone.push((Side::Attacker, e.line, e.slot, e.kind));
         }
     }
     for e in state.def_.entities.values() {
         if e.cur_health <= 0.0 {
-            gone.push((Side::Defender, e.line, e.slot, e.kind.clone()));
+            gone.push((Side::Defender, e.line, e.slot, e.kind));
         }
     }
 
@@ -1000,7 +971,7 @@ fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
                 side_char(s),
                 li,
                 si,
-                kind
+                kind.name()
             ));
         }
     }
@@ -1014,15 +985,15 @@ fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) {
 mod tests {
     use super::*;
 
-    fn add_unit(form: &mut Formation, kind: &str, is_hero: bool) {
+    fn add_unit(form: &mut Formation, kind: UnitKind, is_hero: bool) {
         let id = form.alloc_id();
         let ent = Entity {
             id,
             side: form.side,
             line: 0,
             slot: 0,
-            kind: kind.to_string(),
-            class: "land".into(),
+            kind,
+            class: UnitClass::Land,
             traits: vec![],
             attack: None,
             range: 0,
@@ -1040,93 +1011,106 @@ mod tests {
 
     #[test]
     fn repack_attacker_battle_json_layout() {
-        let cfg = BattleConfig::default();
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
 
-        let (abbr, layouts) = parse_layouts("layouts.dat").unwrap();
+        let layouts = parse_layouts("layouts.dat").unwrap();
         let raw_counts = vec![
-            ("Horseman".to_string(), 18),
-            ("Crossbowman".to_string(), 4),
-            ("SisterOfMercy".to_string(), 9),
-            ("SageLvl3".to_string(), 3),
-            ("Hero".to_string(), 1),
+            (UnitKind::Horseman, 18),
+            (UnitKind::Crossbowman, 4),
+            (UnitKind::SisterOfMercy, 9),
+            (UnitKind::SageLvl3, 3),
+            (UnitKind::Hero, 1),
         ];
-        let counts = canonicalize_counts(&raw_counts, &abbr);
+        let counts = canonicalize_counts(&raw_counts);
         let template = select_layout(&layouts, SideKind::Left, &counts).unwrap();
         let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
-            add_unit(&mut form, "Horseman", false);
+            add_unit(&mut form, UnitKind::Horseman, false);
         }
         for _ in 0..4 {
-            add_unit(&mut form, "Crossbowman", false);
+            add_unit(&mut form, UnitKind::Crossbowman, false);
         }
         for _ in 0..9 {
-            add_unit(&mut form, "SisterOfMercy", false);
+            add_unit(&mut form, UnitKind::SisterOfMercy, false);
         }
         for _ in 0..3 {
-            add_unit(&mut form, "SageLvl3", false);
+            add_unit(&mut form, UnitKind::SageLvl3, false);
         }
-        add_unit(&mut form, "Hero", true);
+        add_unit(&mut form, UnitKind::Hero, true);
 
         form.repack(&cfg, 1, true);
 
-        let kinds: Vec<Vec<String>> = form
+        let kinds: Vec<Vec<UnitKind>> = form
             .grid
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|eid| form.entities.get(eid).unwrap().kind.clone())
+                    .map(|eid| form.entities.get(eid).unwrap().kind)
                     .collect::<Vec<_>>()
             })
             .collect();
 
-        let expected: Vec<Vec<String>> = vec![
+        let expected: Vec<Vec<UnitKind>> = vec![
             vec![
-                "Crossbowman",
-                "Crossbowman",
-                "SageLvl3",
-                "Horseman",
-                "Horseman",
-                "Horseman",
+                UnitKind::Crossbowman,
+                UnitKind::Crossbowman,
+                UnitKind::SageLvl3,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
             ],
             vec![
-                "SisterOfMercy",
-                "Horseman",
-                "Horseman",
-                "SisterOfMercy",
-                "SisterOfMercy",
-                "Horseman",
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::SisterOfMercy,
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
             ],
             vec![
-                "SageLvl3",
-                "SisterOfMercy",
-                "SisterOfMercy",
-                "Horseman",
-                "Horseman",
-                "Horseman",
+                UnitKind::SageLvl3,
+                UnitKind::SisterOfMercy,
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
             ],
             vec![
-                "Horseman", "SageLvl3", "Horseman", "Horseman", "Horseman", "Horseman",
+                UnitKind::Horseman,
+                UnitKind::SageLvl3,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
             ],
             vec![
-                "SisterOfMercy",
-                "Horseman",
-                "SisterOfMercy",
-                "SisterOfMercy",
-                "Horseman",
-                "Hero",
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::SisterOfMercy,
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::Hero,
             ],
             vec![
-                "Crossbowman",
-                "SisterOfMercy",
-                "Horseman",
-                "Crossbowman",
-                "Horseman",
+                UnitKind::Crossbowman,
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::Crossbowman,
+                UnitKind::Horseman,
             ],
-        ]
-        .into_iter()
-        .map(|line| line.into_iter().map(|s| s.to_string()).collect())
-        .collect();
+        ];
 
         assert_eq!(kinds, expected);
         assert_eq!(form.entities.len(), 35);

@@ -1,14 +1,15 @@
 use anyhow::{bail, Context, Result};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fs;
 
 use crate::lines_layout::u_picture;
+use crate::types::UnitKind;
 
 #[derive(Debug, Clone)]
 pub struct LayoutEntry {
     pub side: SideKind,
-    pub counts: BTreeMap<String, usize>,
-    pub grid: Vec<Vec<Option<String>>>,
+    pub counts: BTreeMap<UnitKind, usize>,
+    pub grid: Vec<Vec<Option<UnitKind>>>,
     pub line_no: usize,
 }
 
@@ -29,9 +30,8 @@ impl SideKind {
 }
 
 /// Parse the layouts.dat file and return all layout entries.
-pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutEntry>)> {
+pub fn parse_layouts(path: &str) -> Result<Vec<LayoutEntry>> {
     let text = fs::read_to_string(path).with_context(|| format!("reading {path}"))?;
-    let mut abbr: HashMap<String, String> = HashMap::new();
     let mut entries: Vec<LayoutEntry> = vec![];
 
     let lines: Vec<&str> = text.lines().collect();
@@ -43,16 +43,7 @@ pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutE
             i += 1;
             continue;
         }
-        if let Some(rest) = line.strip_prefix('#') {
-            // comment or abbreviation mapping
-            let rest = rest.trim();
-            if let Some((abbr_str, name)) = rest.split_once('-') {
-                let a = abbr_str.trim();
-                let n = name.trim();
-                if a.len() == 2 {
-                    abbr.insert(a.to_string(), n.to_string());
-                }
-            }
+        if line.starts_with('#') {
             i += 1;
             continue;
         }
@@ -63,7 +54,7 @@ pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutE
             .ok_or_else(|| anyhow::anyhow!("Invalid layout header at line {}", i + 1))?;
         let side = SideKind::from_str(side_str)
             .ok_or_else(|| anyhow::anyhow!("Unknown side '{}' at line {}", side_str, i + 1))?;
-        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+        let mut counts: BTreeMap<UnitKind, usize> = BTreeMap::new();
         if rest.trim().is_empty() {
             bail!("Missing units specification at line {}", i + 1);
         }
@@ -77,16 +68,14 @@ pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutE
             } else {
                 num.parse().with_context(|| format!("line {}", i + 1))?
             };
-            let name = abbr
-                .get(ab)
-                .ok_or_else(|| anyhow::anyhow!("Unknown unit abbr '{}' at line {}", ab, i + 1))?
-                .clone();
-            *counts.entry(name).or_default() += qty;
+            let kind = UnitKind::from_abbr(ab)
+                .ok_or_else(|| anyhow::anyhow!("Unknown unit abbr '{}' at line {}", ab, i + 1))?;
+            *counts.entry(kind).or_default() += qty;
         }
 
         i += 1;
-        let mut grid: Vec<Vec<Option<String>>> = vec![];
-        let mut grid_counts: BTreeMap<String, usize> = BTreeMap::new();
+        let mut grid: Vec<Vec<Option<UnitKind>>> = vec![];
+        let mut grid_counts: BTreeMap<UnitKind, usize> = BTreeMap::new();
         while i < lines.len() {
             let row_raw = lines[i];
             let row = row_raw.trim();
@@ -99,20 +88,17 @@ pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutE
             if row.len() % 2 != 0 {
                 bail!("Row length must be even at line {}", i + 1);
             }
-            let mut cells: Vec<Option<String>> = vec![];
+            let mut cells: Vec<Option<UnitKind>> = vec![];
             for chunk in row.as_bytes().chunks(2) {
                 let token = std::str::from_utf8(chunk).unwrap();
                 if token == ".." {
                     cells.push(None);
                 } else {
-                    let name = abbr
-                        .get(token)
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Unknown unit token '{}' at line {}", token, i + 1)
-                        })?
-                        .clone();
-                    *grid_counts.entry(name.clone()).or_default() += 1;
-                    cells.push(Some(name));
+                    let kind = UnitKind::from_abbr(token).ok_or_else(|| {
+                        anyhow::anyhow!("Unknown unit token '{}' at line {}", token, i + 1)
+                    })?;
+                    *grid_counts.entry(kind).or_default() += 1;
+                    cells.push(Some(kind));
                 }
             }
             if side == SideKind::Right {
@@ -157,37 +143,24 @@ pub fn parse_layouts(path: &str) -> Result<(HashMap<String, String>, Vec<LayoutE
         });
     }
 
-    Ok((abbr, entries))
+    Ok(entries)
 }
 
 pub fn find_layout_entry<'a>(
     layouts: &'a [LayoutEntry],
     side: SideKind,
-    counts: &BTreeMap<String, usize>,
+    counts: &BTreeMap<UnitKind, usize>,
 ) -> Option<&'a LayoutEntry> {
     layouts
         .iter()
         .find(|e| e.side == side && e.counts == *counts)
 }
 
-/// Helper to compute roster counts with canonicalization based on mapping.
-pub fn canonicalize_counts(
-    counts: &[(String, usize)],
-    abbr: &HashMap<String, String>,
-) -> BTreeMap<String, usize> {
-    let mut map: BTreeMap<String, usize> = BTreeMap::new();
+/// Aggregate roster counts.
+pub fn canonicalize_counts(counts: &[(UnitKind, usize)]) -> BTreeMap<UnitKind, usize> {
+    let mut map: BTreeMap<UnitKind, usize> = BTreeMap::new();
     for (k, v) in counts {
-        let mut found = false;
-        for name in abbr.values() {
-            if k.starts_with(name) {
-                *map.entry(name.clone()).or_default() += *v;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            *map.entry(k.clone()).or_default() += *v;
-        }
+        *map.entry(k.canonical()).or_default() += *v;
     }
     map
 }
@@ -195,32 +168,26 @@ pub fn canonicalize_counts(
 pub fn select_layout(
     layouts: &[LayoutEntry],
     side: SideKind,
-    counts: &BTreeMap<String, usize>,
-) -> Option<Vec<Vec<Option<String>>>> {
+    counts: &BTreeMap<UnitKind, usize>,
+) -> Option<Vec<Vec<Option<UnitKind>>>> {
     if let Some(entry) = find_layout_entry(layouts, side, counts) {
         Some(entry.grid.clone())
     } else if counts.len() == 1 {
         let (unit, &num) = counts.iter().next().unwrap();
-        Some(single_unit_layout(side, unit, num))
+        Some(single_unit_layout(side, *unit, num))
     } else {
         None
     }
 }
 
-fn single_unit_layout(side: SideKind, unit: &str, count: usize) -> Vec<Vec<Option<String>>> {
+fn single_unit_layout(side: SideKind, unit: UnitKind, count: usize) -> Vec<Vec<Option<UnitKind>>> {
     let picture = u_picture(count);
     picture
         .into_iter()
         .map(|row| {
-            let mut cells: Vec<Option<String>> = row
+            let mut cells: Vec<Option<UnitKind>> = row
                 .chars()
-                .map(|ch| {
-                    if ch == 'U' {
-                        Some(unit.to_string())
-                    } else {
-                        None
-                    }
-                })
+                .map(|ch| if ch == 'U' { Some(unit) } else { None })
                 .collect();
             if side == SideKind::Right {
                 cells.reverse();
@@ -237,12 +204,12 @@ mod tests {
     #[test]
     fn fallback_single_unit_layout_right() {
         let layouts: Vec<LayoutEntry> = vec![];
-        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
-        counts.insert("Dragon".into(), 3);
+        let mut counts: BTreeMap<UnitKind, usize> = BTreeMap::new();
+        counts.insert(UnitKind::BroilerDragon, 3);
         let grid = select_layout(&layouts, SideKind::Right, &counts).unwrap();
         let expected = vec![
-            vec![Some("Dragon".into()), Some("Dragon".into())],
-            vec![Some("Dragon".into()), None],
+            vec![Some(UnitKind::BroilerDragon), Some(UnitKind::BroilerDragon)],
+            vec![Some(UnitKind::BroilerDragon), None],
         ];
         assert_eq!(grid, expected);
     }
