@@ -940,45 +940,114 @@ fn attacker_act(
         }
     });
 
-    let start = start_idx % cands.len();
-    let target_eid = cands[start].1;
-
-    // update attacker memory
-    {
-        let a = get_entity_mut(state, attacker_id);
-        a.next_enemy_idx = (start + 1) % cands.len();
-    }
-
-    // Attack bonus vs traits from unit definition (flat add)
-    let (target_traits, def_val, t_kind, t_side, t_line, t_slot) = {
-        let t = get_entity(state, target_eid);
-        (t.traits.clone(), t.defense, t.kind, t.side, t.line, t.slot)
-    };
-    let atk_val = atk + attack_bonus_vs(&traits, &target_traits, &state.cfg.units, kind);
-    let dmg = -(atk_val * atk_val) / (atk_val + def_val);
-
-    // Apply damage
-    let new_health = {
-        let t = get_entity_mut(state, target_eid);
-        t.cur_health = (t.cur_health + dmg).max(0.0);
-        t.cur_health
+    // Determine starting candidate index based on policy
+    let start = match policy {
+        TargetingPolicy::LowestHealth => 0,
+        TargetingPolicy::ClosestThenReadingOrder => start_idx % cands.len(),
     };
 
-    // Log event
+    // Snapshot attacker info for logging
     let (src_kind, src_side, src_line, src_slot) = {
         let src = get_entity(state, attacker_id);
         (src.kind, src.side, src.line, src.slot)
     };
-    events.push(format!(
-        "{}. {} #{}{}.{} attacks {} #{}{}.{}. Attack {:.2} vs Defense {:.2} => damage {:+.2}. {} now {:.2}",
-        *idx,
-        src_kind.name(),
-        side_char(src_side), src_line, src_slot,
-        t_kind.name(), side_char(t_side), t_line, t_slot,
-        atk_val, def_val, dmg,
-        t_kind.name(), new_health
-    ));
-    *idx += 1;
+
+    // iterate through candidates applying spillover damage
+    let mut remaining_base_atk = atk;
+    let mut idx_cur = start;
+    let mut killed = 0usize;
+    let mut targets_hit = 0usize;
+
+    while remaining_base_atk > 0.0 && idx_cur < cands.len() {
+        let eid = cands[idx_cur].1;
+        let (target_traits, def_val, t_kind, t_side, t_line, t_slot, cur_hp) = {
+            let t = get_entity(state, eid);
+            (
+                t.traits.clone(),
+                t.defense,
+                t.kind,
+                t.side,
+                t.line,
+                t.slot,
+                t.cur_health,
+            )
+        };
+
+        let bonus = attack_bonus_vs(&traits, &target_traits, &state.cfg.units, kind);
+        let mut eff_atk = remaining_base_atk + bonus;
+        let mut dmg = -(eff_atk * eff_atk) / (eff_atk + def_val);
+        let mut used_base = eff_atk - bonus;
+
+        if -dmg > cur_hp {
+            // compute minimum effective attack to ensure the unit is killed
+            let mut needed_eff = cur_hp
+                + (cur_hp * cur_hp + 4.0 * cur_hp * def_val).sqrt() / 2.0;
+            // do not exceed available attack
+            if needed_eff > eff_atk {
+                needed_eff = eff_atk;
+            }
+            // round up to 2 decimals to ensure kill
+            needed_eff = (needed_eff * 100.0).ceil() / 100.0;
+            used_base = (needed_eff - bonus).max(0.0);
+            eff_atk = used_base + bonus;
+            dmg = -(eff_atk * eff_atk) / (eff_atk + def_val);
+        }
+
+        remaining_base_atk -= used_base;
+        if remaining_base_atk < 0.0 {
+            remaining_base_atk = 0.0;
+        }
+
+        let new_health = {
+            let t = get_entity_mut(state, eid);
+            t.cur_health = (t.cur_health + dmg).max(0.0);
+            t.cur_health
+        };
+
+        if new_health <= 0.0 {
+            killed += 1;
+        }
+
+        events.push(format!(
+            "{}. {} #{}{}.{} attacks {} #{}{}.{}. Attack {:.2} vs Defense {:.2} => damage {:+.2}. {} now {:.2}",
+            *idx,
+            src_kind.name(),
+            side_char(src_side),
+            src_line,
+            src_slot,
+            t_kind.name(),
+            side_char(t_side),
+            t_line,
+            t_slot,
+            eff_atk,
+            def_val,
+            dmg,
+            t_kind.name(),
+            new_health
+        ));
+        *idx += 1;
+
+        targets_hit += 1;
+        idx_cur += 1;
+    }
+
+    // update attacker memory
+    {
+        let a = get_entity_mut(state, attacker_id);
+        match policy {
+            TargetingPolicy::LowestHealth => {
+                a.next_enemy_idx = 0;
+            }
+            TargetingPolicy::ClosestThenReadingOrder => {
+                let survivors = cands.len() - killed;
+                if survivors > 0 {
+                    a.next_enemy_idx = (start + targets_hit) % survivors;
+                } else {
+                    a.next_enemy_idx = 0;
+                }
+            }
+        }
+    }
 
     true
 }
@@ -1406,5 +1475,175 @@ mod tests {
         let _ = healer_act(&mut state, sis_id, &mut events, &mut idx);
 
         assert_eq!(state.att.entities.get(&h1).unwrap().cur_health, 0.0);
+    }
+
+    #[test]
+    fn lowest_health_targeting_prefers_weakest() {
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![UnitKind::Hero],
+        }];
+        let def_template = vec![LayoutLine {
+            units: vec![UnitKind::BroilerDragon, UnitKind::BroilerDragon],
+        }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let hero = add_unit(&mut state.att, UnitKind::Hero, false);
+        let d1 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+        let d2 = add_unit(&mut state.def_, UnitKind::BroilerDragon, false);
+
+        {
+            let e = state.att.entities.get_mut(&hero).unwrap();
+            e.attack = Some(5.0);
+            e.range = 10;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+        for &did in &[d1, d2] {
+            let e = state.def_.entities.get_mut(&did).unwrap();
+            e.base_health = 100.0;
+            e.cur_health = 100.0;
+            e.defense = 0.0;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+
+        state.att.repack(&state.cfg, 0, true);
+        state.def_.repack(&state.cfg, 0, false);
+
+        let mut events = vec![];
+        let mut idx = 1;
+
+        // round 1 - hero should hit first dragon
+        let _ = attacker_act(
+            &mut state,
+            hero,
+            &mut events,
+            &mut idx,
+            TargetingPolicy::LowestHealth,
+        );
+        let d1_after = state.def_.entities.get(&d1).unwrap().cur_health;
+        let d2_after = state.def_.entities.get(&d2).unwrap().cur_health;
+        assert!(d1_after < d2_after);
+
+        // round 2 - should hit same dragon again as it has lowest health
+        let _ = attacker_act(
+            &mut state,
+            hero,
+            &mut events,
+            &mut idx,
+            TargetingPolicy::LowestHealth,
+        );
+        let d1_final = state.def_.entities.get(&d1).unwrap().cur_health;
+        let d2_final = state.def_.entities.get(&d2).unwrap().cur_health;
+        assert!(d1_final < d1_after);
+        assert_eq!(d2_final, d2_after);
+    }
+
+    #[test]
+    fn attack_spillover_hits_multiple_targets() {
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![UnitKind::BroilerDragon],
+        }];
+        let def_template = vec![LayoutLine {
+            units: vec![
+                UnitKind::SisterOfMercy,
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+            ],
+        }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let dr = add_unit(&mut state.att, UnitKind::BroilerDragon, false);
+        let s1 = add_unit(&mut state.def_, UnitKind::SisterOfMercy, false);
+        let h1 = add_unit(&mut state.def_, UnitKind::Horseman, false);
+        let h2 = add_unit(&mut state.def_, UnitKind::Horseman, false);
+
+        {
+            let e = state.att.entities.get_mut(&dr).unwrap();
+            e.attack = Some(112.0);
+            e.range = 10;
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+        {
+            let e = state.def_.entities.get_mut(&s1).unwrap();
+            e.base_health = 65.25;
+            e.cur_health = 65.25;
+            e.defense = 4.04;
+        }
+        {
+            let e = state.def_.entities.get_mut(&h1).unwrap();
+            e.base_health = 4.22;
+            e.cur_health = 4.22;
+            e.defense = 5.05;
+        }
+        {
+            let e = state.def_.entities.get_mut(&h2).unwrap();
+            e.base_health = 200.0;
+            e.cur_health = 200.0;
+            e.defense = 5.05;
+        }
+
+        for &did in &[s1, h1, h2] {
+            let e = state.def_.entities.get_mut(&did).unwrap();
+            e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
+        }
+
+        state.att.repack(&state.cfg, 0, true);
+        state.def_.repack(&state.cfg, 0, false);
+
+        let mut events = vec![];
+        let mut idx = 1;
+
+        let att_ids = state.att.units[0].units.clone();
+        let _ = attacker_act(
+            &mut state,
+            att_ids[0],
+            &mut events,
+            &mut idx,
+            TargetingPolicy::ClosestThenReadingOrder,
+        );
+
+        assert_eq!(state.def_.entities.get(&s1).unwrap().cur_health, 0.0);
+        assert_eq!(state.def_.entities.get(&h1).unwrap().cur_health, 0.0);
+        let h2_health = state.def_.entities.get(&h2).unwrap().cur_health;
+        assert!(h2_health < 200.0 && h2_health > 199.0);
     }
 }
