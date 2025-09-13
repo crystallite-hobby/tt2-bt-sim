@@ -167,13 +167,18 @@ struct BattleState {
 #[derive(Debug, Clone)]
 struct Formation {
     /// All alive entities in reading order (Line asc, Slot asc). Repacked per round.
-    grid: Vec<Vec<EntityId>>, // lines -> slots -> entity id
+    units: Vec<ArmyLine>, // lines -> slots -> entity id
     template: Vec<LayoutLine>,
     canon_names: Vec<UnitKind>,
     entities: BTreeMap<EntityId, Entity>,
     next_local_id: usize,
     side: Side,
     side_mods: SideModifiers,
+}
+
+#[derive(Debug, Clone)]
+struct ArmyLine {
+    units: Vec<EntityId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -318,7 +323,11 @@ fn main() -> Result<()> {
                 Side::Defender => (&state.def_, &state.att),
             };
             // Reading order snapshot (entities may die during iteration)
-            let mut roster: Vec<EntityId> = acting_form.grid.iter().flatten().cloned().collect();
+            let mut roster: Vec<EntityId> = acting_form
+                .units
+                .iter()
+                .flat_map(|l| l.units.iter().cloned())
+                .collect();
 
             for eid in roster.drain(..) {
                 if !is_alive(&state, eid) {
@@ -499,7 +508,7 @@ impl Formation {
             }
         }
         Self {
-            grid: vec![],
+            units: vec![],
             template,
             canon_names: set.into_iter().collect(),
             entities: BTreeMap::new(),
@@ -535,7 +544,7 @@ impl Formation {
             buckets.entry(key).or_default().push_back(e);
         }
 
-        let mut new_grid: Vec<Vec<EntityId>> = vec![vec![]; self.template.len()];
+        let mut new_units: Vec<ArmyLine> = Vec::with_capacity(self.template.len());
         for (li, line) in self.template.iter().enumerate() {
             let mut ids: Vec<EntityId> = vec![];
             for (si, &kind) in line.units.iter().enumerate() {
@@ -551,14 +560,14 @@ impl Formation {
                     }
                 }
             }
-            new_grid[li] = ids;
+            new_units.push(ArmyLine { units: ids });
         }
 
         if buckets.values().any(|v| !v.is_empty()) {
             panic!("More units than layout capacity");
         }
 
-        self.grid = new_grid;
+        self.units = new_units;
     }
 }
 
@@ -609,20 +618,20 @@ fn aggregate_kinds(form: &Formation) -> HashMap<UnitKind, usize> {
 }
 
 fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
-    let grid = match s {
-        SideKind::Left => &state.att.grid,
-        SideKind::Right => &state.def_.grid,
+    let units = match s {
+        SideKind::Left => &state.att.units,
+        SideKind::Right => &state.def_.units,
     };
-    let max_slots = grid.iter().map(|line| line.len()).max().unwrap_or(0);
+    let max_slots = units.iter().map(|line| line.units.len()).max().unwrap_or(0);
     let mut rows: Vec<String> = Vec::new();
     for si in 0..max_slots {
-        let lines_iter: Box<dyn Iterator<Item = &Vec<EntityId>>> = match s {
-            SideKind::Left => Box::new(grid.iter().rev()),
-            SideKind::Right => Box::new(grid.iter()),
+        let lines_iter: Box<dyn Iterator<Item = &ArmyLine>> = match s {
+            SideKind::Left => Box::new(units.iter().rev()),
+            SideKind::Right => Box::new(units.iter()),
         };
         let mut row = String::new();
         for line in lines_iter {
-            if let Some(eid) = line.get(si) {
+            if let Some(eid) = line.units.get(si) {
                 row.push_str(get_entity(state, *eid).kind.abbr());
             } else {
                 row.push_str("..");
@@ -651,9 +660,9 @@ fn print_layouts(state: &BattleState) {
 
     // Attacker
     println!("Attacker army layout:");
-    for (li, row) in state.att.grid.iter().enumerate() {
+    for (li, line) in state.att.units.iter().enumerate() {
         println!("- Line #{}:", li + 1);
-        for (si, eid) in row.iter().enumerate() {
+        for (si, eid) in line.units.iter().enumerate() {
             let e = get_entity(state, *eid);
             let hp_str = if e.bonus_health > 0.0 {
                 format!("({:.0}+{:.2})", e.base_health, e.bonus_health)
@@ -673,9 +682,9 @@ fn print_layouts(state: &BattleState) {
 
     // Defender
     println!("Defending army layout:");
-    for (li, row) in state.def_.grid.iter().enumerate() {
+    for (li, line) in state.def_.units.iter().enumerate() {
         println!("- Line #{}:", li + 1);
-        for (si, eid) in row.iter().enumerate() {
+        for (si, eid) in line.units.iter().enumerate() {
             let e = get_entity(state, *eid);
             let hp_str = if e.bonus_health > 0.0 {
                 format!("({:.0}+{:.0})", e.base_health, e.bonus_health)
@@ -738,10 +747,10 @@ fn healer_act(
         Side::Defender => &state.def_,
     };
     let mut wounded: Vec<EntityId> = vec![];
-    for (eli, row) in allies.grid.iter().enumerate() {
+    for (eli, line_units) in allies.units.iter().enumerate() {
         let dist = li_dist_same(line, eli + 1);
         if dist <= range {
-            for &eid in row {
+            for &eid in &line_units.units {
                 let e = get_entity(state, eid);
                 if e.cur_health > 0.0 && e.cur_health < e.base_health + e.bonus_health {
                     wounded.push(eid);
@@ -842,10 +851,10 @@ fn attacker_act(
         Side::Defender => &state.att,
     };
     let mut cands: Vec<(usize, EntityId)> = vec![]; // (line_distance, eid)
-    for (eli, row) in enemies.grid.iter().enumerate() {
+    for (eli, line_units) in enemies.units.iter().enumerate() {
         let dist = li_dist_cross(line, eli + 1);
         if dist <= range {
-            for &eid in row {
+            for &eid in &line_units.units {
                 let e = get_entity(state, eid);
                 if e.cur_health > 0.0 && can_target.contains(&e.class) {
                     cands.push((dist, eid));
@@ -1041,8 +1050,7 @@ mod tests {
         ];
         let counts = canonicalize_counts(&raw_counts);
         let template = select_layout(&layouts, SideKind::Left, &counts).unwrap();
-        let expected: Vec<Vec<UnitKind>> =
-            template.iter().map(|line| line.units.clone()).collect();
+        let expected: Vec<Vec<UnitKind>> = template.iter().map(|line| line.units.clone()).collect();
         let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
 
         for _ in 0..18 {
@@ -1062,10 +1070,11 @@ mod tests {
         form.repack(&cfg, 1, true);
 
         let kinds: Vec<Vec<UnitKind>> = form
-            .grid
+            .units
             .iter()
-            .map(|row| {
-                row.iter()
+            .map(|line| {
+                line.units
+                    .iter()
                     .map(|eid| form.entities.get(eid).unwrap().kind.canonical())
                     .collect::<Vec<_>>()
             })
