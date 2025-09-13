@@ -211,7 +211,14 @@ enum Side {
     Defender,
 }
 
-impl Side {}
+impl From<Side> for SideKind {
+    fn from(value: Side) -> Self {
+        match value {
+            Side::Attacker => SideKind::Left,
+            Side::Defender => SideKind::Right,
+        }
+    }
+}
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -617,7 +624,7 @@ fn aggregate_kinds(form: &Formation) -> HashMap<UnitKind, usize> {
     m
 }
 
-fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
+fn army_lines_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
     let units = match s {
         SideKind::Left => &state.att.units,
         SideKind::Right => &state.def_.units,
@@ -634,7 +641,7 @@ fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
             if let Some(eid) = line.units.get(si) {
                 row.push_str(get_entity(state, *eid).kind.abbr());
             } else {
-                row.push_str("..");
+                row.push_str("  ");
             }
         }
         rows.push(row);
@@ -642,9 +649,15 @@ fn grid_to_text_rows(s: SideKind, state: &BattleState) -> Vec<String> {
     rows
 }
 
-fn print_layouts(state: &BattleState) {
-    let att_text_rows = grid_to_text_rows(SideKind::Left, &state);
-    let def_text_rows = grid_to_text_rows(SideKind::Right, &state);
+fn print_armies_picture(state: &BattleState) {
+    let att_text_rows = army_lines_to_text_rows(SideKind::Left, &state);
+    let def_text_rows = army_lines_to_text_rows(SideKind::Right, &state);
+    let max_length = att_text_rows
+        .first()
+        .unwrap()
+        .len()
+        .max(def_text_rows.first().unwrap().len());
+    let place_holder = vec![" "; max_length].join("");
 
     use itertools::EitherOrBoth::*;
     for pair in att_text_rows
@@ -653,10 +666,15 @@ fn print_layouts(state: &BattleState) {
     {
         match pair {
             Both(l, r) => println!("{} {}", l, r),
-            Left(l) => println!("{} ...", l),
-            Right(r) => println!("... {}", r),
+            Left(l) => println!("{} {}", l, place_holder),
+            Right(r) => println!("{} {}", place_holder, r),
         }
     }
+}
+
+fn print_layouts(state: &BattleState) {
+    print_armies_picture(state);
+    println!();
 
     // Attacker
     println!("Attacker army layout:");

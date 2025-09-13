@@ -164,6 +164,27 @@ pub fn parse_layouts(path: &str) -> Result<Vec<LayoutEntry>> {
     Ok(entries)
 }
 
+pub fn layout_lines_to_text_rows(s: SideKind, lines: &Vec<LayoutLine>) -> Vec<String> {
+    let max_slots = lines.iter().map(|line| line.units.len()).max().unwrap_or(0);
+    let mut rows: Vec<String> = Vec::new();
+    for si in 0..max_slots {
+        let lines_iter: Box<dyn Iterator<Item = &LayoutLine>> = match s {
+            SideKind::Left => Box::new(lines.iter().rev()),
+            SideKind::Right => Box::new(lines.iter()),
+        };
+        let mut row = String::new();
+        for line in lines_iter {
+            if let Some(kind) = line.units.get(si) {
+                row.push_str(kind.abbr());
+            } else {
+                row.push_str("  ");
+            }
+        }
+        rows.push(row);
+    }
+    rows
+}
+
 pub fn find_layout_entry<'a>(
     layouts: &'a [LayoutEntry],
     side: SideKind,
@@ -215,7 +236,7 @@ fn single_unit_layout(side: SideKind, unit: UnitKind, count: usize) -> Vec<Layou
         }
         lines.push(LayoutLine { units: col_units });
     }
-    if side == SideKind::Left {
+    if side == SideKind::Right {
         lines.reverse();
     }
     lines
