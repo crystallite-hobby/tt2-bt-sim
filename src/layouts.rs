@@ -207,18 +207,20 @@ pub fn select_layout(
     }
 }
 
-fn single_unit_layout(
-    side: SideKind,
-    unit: &str,
-    count: usize,
-) -> Vec<Vec<Option<String>>> {
+fn single_unit_layout(side: SideKind, unit: &str, count: usize) -> Vec<Vec<Option<String>>> {
     let picture = u_picture(count);
     picture
         .into_iter()
         .map(|row| {
             let mut cells: Vec<Option<String>> = row
                 .chars()
-                .map(|ch| if ch == 'U' { Some(unit.to_string()) } else { None })
+                .map(|ch| {
+                    if ch == 'U' {
+                        Some(unit.to_string())
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             if side == SideKind::Right {
                 cells.reverse();

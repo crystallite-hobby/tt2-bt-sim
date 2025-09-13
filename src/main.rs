@@ -77,7 +77,6 @@ struct ArmyConfig {
     side_mods: SideModifiers,
 }
 
-
 #[derive(Debug, Clone, Deserialize, Default)]
 struct RulesConfig {
     #[serde(default = "default_max_rounds")]
@@ -194,8 +193,7 @@ enum Side {
     Defender,
 }
 
-impl Side {
-}
+impl Side {}
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -240,16 +238,8 @@ fn main() -> Result<()> {
 
     let mut state = BattleState {
         round: 0,
-        att: Formation::new(
-            Side::Attacker,
-            cfg.attacker.side_mods.clone(),
-            att_template,
-        ),
-        def_: Formation::new(
-            Side::Defender,
-            cfg.defender.side_mods.clone(),
-            def_template,
-        ),
+        att: Formation::new(Side::Attacker, cfg.attacker.side_mods.clone(), att_template),
+        def_: Formation::new(Side::Defender, cfg.defender.side_mods.clone(), def_template),
         cfg,
         def_building_hp_bonus,
     };
@@ -273,7 +263,7 @@ fn main() -> Result<()> {
         }
 
         println!("\n## Round {}\n", state.round);
-        print_layouts(&state);
+        print_layouts(&state, &abbr_map);
 
         let mut events: Vec<String> = vec![];
         let mut eliminations: Vec<String> = vec![];
@@ -618,7 +608,61 @@ fn aggregate_kinds(form: &Formation) -> HashMap<&str, usize> {
     m
 }
 
-fn print_layouts(state: &BattleState) {
+fn find_key_for_value(map: &HashMap<String, String>, value: &str) -> Option<String> {
+    map.iter().find_map(|(key, val)| {
+        if val.as_str() == value {
+            Some(key.clone())
+        } else {
+            None
+        }
+    })
+}
+
+fn grid_to_text_rows(
+    s: SideKind,
+    state: &BattleState,
+    abbr_map: &HashMap<String, String>,
+) -> Vec<String> {
+    let grid = match s {
+        SideKind::Left => &state.att.grid,
+        SideKind::Right => &state.def_.grid,
+    };
+    grid.iter()
+        .map(|row| {
+            let es = match s {
+                SideKind::Left => row.iter().collect::<Vec<_>>(),
+                SideKind::Right => row.iter().rev().collect::<Vec<_>>(),
+            };
+            es.into_iter()
+                .map(|e| {
+                    let unit_title = &get_entity(state, *e).kind;
+                    let unit_abbr = find_key_for_value(abbr_map, unit_title).expect(&format!(
+                        "Unknown title: {}. Map is: {:?}",
+                        unit_title, abbr_map
+                    ));
+                    unit_abbr
+                })
+                .join("")
+        })
+        .collect::<Vec<_>>()
+}
+
+fn print_layouts(state: &BattleState, abbr_map: &HashMap<String, String>) {
+    let att_text_rows = grid_to_text_rows(SideKind::Left, &state, abbr_map);
+    let def_text_rows = grid_to_text_rows(SideKind::Right, &state, abbr_map);
+
+    use itertools::EitherOrBoth::*;
+    for pair in att_text_rows
+        .into_iter()
+        .zip_longest(def_text_rows.into_iter())
+    {
+        match pair {
+            Both(l, r) => println!("{} {}", l, r),
+            Left(l) => println!("{} ...", l),
+            Right(r) => println!("... {}", r),
+        }
+    }
+
     // Attacker
     println!("Attacker army layout:");
     for (li, row) in state.att.grid.iter().enumerate() {
@@ -1062,12 +1106,7 @@ mod tests {
                 "Horseman",
             ],
             vec![
-                "Horseman",
-                "SageLvl3",
-                "Horseman",
-                "Horseman",
-                "Horseman",
-                "Horseman",
+                "Horseman", "SageLvl3", "Horseman", "Horseman", "Horseman", "Horseman",
             ],
             vec![
                 "SisterOfMercy",
@@ -1093,4 +1132,3 @@ mod tests {
         assert_eq!(form.entities.len(), 35);
     }
 }
-
