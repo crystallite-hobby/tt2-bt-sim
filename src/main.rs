@@ -6,12 +6,10 @@ use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use tt2_bt_sim::layouts::{
-    canonicalize_counts, parse_layouts, select_layout, LayoutEntry, SideKind,
-};
-use tt2_bt_sim::types::{AppliesTo, TargetingPolicy, Trait, UnitClass, UnitKind};
-use tt2_bt_sim::config::{default_hero_policy, BattleConfig, SideModifiers, ArmyConfig, RulesConfig, UnitDef};
-use tt2_bt_sim::battle::{BattleState, Formation, ArmyLine, Entity, EntityId, Side};
+use tt2_bt_sim::battle::*;
+use tt2_bt_sim::config::*;
+use tt2_bt_sim::layouts::*;
+use tt2_bt_sim::types::*;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -206,11 +204,15 @@ fn main() -> Result<()> {
 
         // Repack for next round if needed
         if att_dead {
-            state.att.repack(&state.cfg, state.round, true, Some(&layouts));
+            state
+                .att
+                .repack(&state.cfg, state.round, true, Some(&layouts));
             state.def_.reset_memory();
         }
         if def_dead {
-            state.def_.repack(&state.cfg, state.round, false, Some(&layouts));
+            state
+                .def_
+                .repack(&state.cfg, state.round, false, Some(&layouts));
             state.att.reset_memory();
         }
     }
@@ -320,10 +322,13 @@ fn apply_health_mods(base: f64, mods: &SideModifiers, side: Side, def_bonus: f64
 }
 
 fn repack_layouts(state: &mut BattleState, layouts: &[LayoutEntry]) {
-    state.att.repack(&state.cfg, state.round, true, Some(layouts));
-    state.def_.repack(&state.cfg, state.round, false, Some(layouts));
+    state
+        .att
+        .repack(&state.cfg, state.round, true, Some(layouts));
+    state
+        .def_
+        .repack(&state.cfg, state.round, false, Some(layouts));
 }
-
 
 fn print_header(state: &BattleState) {
     let att_units: HashMap<UnitKind, usize> = aggregate_kinds(&state.att);
@@ -702,8 +707,7 @@ fn attacker_act(
 
         if -dmg > cur_hp {
             // compute minimum effective attack to ensure the unit is killed
-            let mut needed_eff = cur_hp
-                + (cur_hp * cur_hp + 4.0 * cur_hp * def_val).sqrt() / 2.0;
+            let mut needed_eff = cur_hp + (cur_hp * cur_hp + 4.0 * cur_hp * def_val).sqrt() / 2.0;
             // do not exceed available attack
             if needed_eff > eff_atk {
                 needed_eff = eff_atk;
@@ -995,8 +999,10 @@ mod tests {
             (UnitKind::Hero, 1),
         ]);
         let expected_template = select_layout(&layouts, SideKind::Left, &new_counts).unwrap();
-        let expected: Vec<Vec<UnitKind>> =
-            expected_template.iter().map(|line| line.units.clone()).collect();
+        let expected: Vec<Vec<UnitKind>> = expected_template
+            .iter()
+            .map(|line| line.units.clone())
+            .collect();
 
         let kinds: Vec<Vec<UnitKind>> = form
             .units
