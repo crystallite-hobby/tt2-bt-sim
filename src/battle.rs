@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use crate::config::{BattleConfig, SideModifiers};
-use crate::layouts::{LayoutLine, SideKind};
+use crate::layouts::{select_layout, LayoutEntry, LayoutLine, SideKind};
 use crate::types::{Trait, UnitClass, UnitKind};
 
 #[derive(Debug, Clone)]
@@ -104,7 +104,43 @@ impl Formation {
         }
     }
 
-    pub fn repack(&mut self, _cfg: &BattleConfig, _round: usize, _is_attacker: bool) {
+    pub fn repack(
+        &mut self,
+        _cfg: &BattleConfig,
+        _round: usize,
+        _is_attacker: bool,
+        layouts: Option<&[LayoutEntry]>,
+    ) {
+        if let Some(layouts) = layouts {
+            let mut counts: BTreeMap<UnitKind, usize> = BTreeMap::new();
+            for e in self
+                .entities
+                .values()
+                .filter(|e| e.cur_health > 0.0)
+            {
+                let key = self.canonicalize(e.kind);
+                *counts.entry(key).or_default() += 1;
+            }
+
+            let side_kind: SideKind = self.side.into();
+            let template = select_layout(layouts, side_kind, &counts)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "No matching layout for {:?}: {:?}",
+                        self.side, counts
+                    )
+                });
+
+            self.template = template.clone();
+            let mut set = BTreeSet::new();
+            for line in &self.template {
+                for &kind in &line.units {
+                    set.insert(kind);
+                }
+            }
+            self.canon_names = set.into_iter().collect();
+        }
+
         let mut buckets: HashMap<UnitKind, VecDeque<Entity>> = HashMap::new();
         for e in self
             .entities

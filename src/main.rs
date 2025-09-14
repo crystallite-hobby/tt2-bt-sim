@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use tt2_bt_sim::layouts::{
-    canonicalize_counts, parse_layouts, select_layout, LayoutLine, SideKind,
+    canonicalize_counts, parse_layouts, select_layout, LayoutEntry, SideKind,
 };
 use tt2_bt_sim::types::{AppliesTo, TargetingPolicy, Trait, UnitClass, UnitKind};
 use tt2_bt_sim::config::{default_hero_policy, BattleConfig, SideModifiers, ArmyConfig, RulesConfig, UnitDef};
@@ -78,7 +78,7 @@ fn main() -> Result<()> {
     seed_side(&mut state, Side::Defender)?;
 
     // Initial layout
-    repack_layouts(&mut state);
+    repack_layouts(&mut state, &layouts);
 
     // Print header
     print_header(&state);
@@ -206,11 +206,11 @@ fn main() -> Result<()> {
 
         // Repack for next round if needed
         if att_dead {
-            state.att.repack(&state.cfg, state.round, true);
+            state.att.repack(&state.cfg, state.round, true, Some(&layouts));
             state.def_.reset_memory();
         }
         if def_dead {
-            state.def_.repack(&state.cfg, state.round, false);
+            state.def_.repack(&state.cfg, state.round, false, Some(&layouts));
             state.att.reset_memory();
         }
     }
@@ -319,9 +319,9 @@ fn apply_health_mods(base: f64, mods: &SideModifiers, side: Side, def_bonus: f64
     (base, bonus_from_mult + building)
 }
 
-fn repack_layouts(state: &mut BattleState) {
-    state.att.repack(&state.cfg, state.round, true);
-    state.def_.repack(&state.cfg, state.round, false);
+fn repack_layouts(state: &mut BattleState, layouts: &[LayoutEntry]) {
+    state.att.repack(&state.cfg, state.round, true, Some(layouts));
+    state.def_.repack(&state.cfg, state.round, false, Some(layouts));
 }
 
 
@@ -849,6 +849,7 @@ fn collect_eliminations(state: &mut BattleState, notes: &mut Vec<String>) -> (bo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tt2_bt_sim::layouts::LayoutLine;
 
     fn add_unit(form: &mut Formation, kind: UnitKind, is_hero: bool) -> EntityId {
         let id = form.alloc_id();
@@ -919,7 +920,7 @@ mod tests {
         }
         let _ = add_unit(&mut form, UnitKind::Hero, true);
 
-        form.repack(&cfg, 1, true);
+        form.repack(&cfg, 1, true, None);
 
         let kinds: Vec<Vec<UnitKind>> = form
             .units
@@ -934,6 +935,81 @@ mod tests {
 
         assert_eq!(kinds, expected);
         assert_eq!(form.entities.len(), 35);
+    }
+
+    #[test]
+    fn repack_updates_layout_after_casualty() {
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let layouts = parse_layouts("layouts.dat").unwrap();
+        let raw_counts = vec![
+            (UnitKind::Horseman, 18),
+            (UnitKind::Crossbowman, 4),
+            (UnitKind::SisterOfMercy, 9),
+            (UnitKind::SageLvl3, 3),
+            (UnitKind::Hero, 1),
+        ];
+        let counts = canonicalize_counts(&raw_counts);
+        let template = select_layout(&layouts, SideKind::Left, &counts).unwrap();
+        let mut form = Formation::new(Side::Attacker, SideModifiers::default(), template);
+
+        let mut sis_ids = Vec::new();
+        for _ in 0..18 {
+            let _ = add_unit(&mut form, UnitKind::Horseman, false);
+        }
+        for _ in 0..4 {
+            let _ = add_unit(&mut form, UnitKind::Crossbowman, false);
+        }
+        for _ in 0..9 {
+            let id = add_unit(&mut form, UnitKind::SisterOfMercy, false);
+            sis_ids.push(id);
+        }
+        for _ in 0..3 {
+            let _ = add_unit(&mut form, UnitKind::SageLvl3, false);
+        }
+        let _ = add_unit(&mut form, UnitKind::Hero, true);
+
+        // remove one sister
+        let dead = sis_ids.pop().unwrap();
+        form.entities.remove(&dead);
+
+        // repack with updated layouts
+        form.repack(&cfg, 1, true, Some(&layouts));
+
+        let new_counts = canonicalize_counts(&[
+            (UnitKind::Horseman, 18),
+            (UnitKind::Crossbowman, 4),
+            (UnitKind::SisterOfMercy, 8),
+            (UnitKind::SageLvl3, 3),
+            (UnitKind::Hero, 1),
+        ]);
+        let expected_template = select_layout(&layouts, SideKind::Left, &new_counts).unwrap();
+        let expected: Vec<Vec<UnitKind>> =
+            expected_template.iter().map(|line| line.units.clone()).collect();
+
+        let kinds: Vec<Vec<UnitKind>> = form
+            .units
+            .iter()
+            .map(|line| {
+                line.units
+                    .iter()
+                    .map(|eid| form.entities.get(eid).unwrap().kind.canonical())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        assert_eq!(kinds, expected);
     }
 
     #[test]
@@ -990,8 +1066,8 @@ mod tests {
             e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
         }
 
-        state.att.repack(&state.cfg, 0, true);
-        state.def_.repack(&state.cfg, 0, false);
+        state.att.repack(&state.cfg, 0, true, None);
+        state.def_.repack(&state.cfg, 0, false, None);
 
         // first round
         let mut events = vec![];
@@ -1076,8 +1152,8 @@ mod tests {
             e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
         }
 
-        state.att.repack(&state.cfg, 0, true);
-        state.def_.repack(&state.cfg, 0, false);
+        state.att.repack(&state.cfg, 0, true, None);
+        state.def_.repack(&state.cfg, 0, false, None);
 
         // round1 - dragon kills first horseman
         let mut events = vec![];
@@ -1099,7 +1175,7 @@ mod tests {
         let (att_dead, _) = collect_eliminations(&mut state, &mut notes);
         assert!(att_dead);
         if att_dead {
-            state.att.repack(&state.cfg, 1, true);
+            state.att.repack(&state.cfg, 1, true, None);
             state.def_.reset_memory();
         }
 
@@ -1176,8 +1252,8 @@ mod tests {
             e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
         }
 
-        state.att.repack(&state.cfg, 0, true);
-        state.def_.repack(&state.cfg, 0, false);
+        state.att.repack(&state.cfg, 0, true, None);
+        state.def_.repack(&state.cfg, 0, false, None);
 
         let mut events = vec![];
         let mut idx = 1;
@@ -1247,8 +1323,8 @@ mod tests {
             e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
         }
 
-        state.att.repack(&state.cfg, 0, true);
-        state.def_.repack(&state.cfg, 0, false);
+        state.att.repack(&state.cfg, 0, true, None);
+        state.def_.repack(&state.cfg, 0, false, None);
 
         let mut events = vec![];
         let mut idx = 1;
@@ -1348,8 +1424,8 @@ mod tests {
             e.can_target = vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial];
         }
 
-        state.att.repack(&state.cfg, 0, true);
-        state.def_.repack(&state.cfg, 0, false);
+        state.att.repack(&state.cfg, 0, true, None);
+        state.def_.repack(&state.cfg, 0, false, None);
 
         let mut events = vec![];
         let mut idx = 1;
