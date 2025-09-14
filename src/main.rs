@@ -424,6 +424,14 @@ fn print_armies_picture(state: &BattleState) {
     }
 }
 
+fn hp_str(e: &Entity) -> String {
+    if e.cur_health > e.base_health {
+        format!("({:.0}+{:.2})", e.base_health, e.cur_health - e.base_health)
+    } else {
+        format!("{:.2}", e.cur_health)
+    }
+}
+
 fn print_layouts(state: &BattleState) {
     print_armies_picture(state);
     println!();
@@ -434,17 +442,12 @@ fn print_layouts(state: &BattleState) {
         println!("- Line #{}:", li + 1);
         for (si, eid) in line.units.iter().enumerate() {
             let e = get_entity(state, *eid);
-            let hp_str = if e.bonus_health > 0.0 {
-                format!("({:.0}+{:.2})", e.base_health, e.bonus_health)
-            } else {
-                format!("{:.2}", e.cur_health)
-            };
             println!(
                 "    - Unit #A{}.{}: {} {} health",
                 li + 1,
                 si + 1,
                 e.kind.name(),
-                hp_str
+                hp_str(e),
             );
         }
     }
@@ -456,17 +459,12 @@ fn print_layouts(state: &BattleState) {
         println!("- Line #{}:", li + 1);
         for (si, eid) in line.units.iter().enumerate() {
             let e = get_entity(state, *eid);
-            let hp_str = if e.bonus_health > 0.0 {
-                format!("({:.0}+{:.0})", e.base_health, e.bonus_health)
-            } else {
-                format!("{:.2}", e.cur_health)
-            };
             println!(
                 "    - Unit #D{}.{}: {} {} health",
                 li + 1,
                 si + 1,
                 e.kind.name(),
-                hp_str
+                hp_str(e),
             );
         }
     }
