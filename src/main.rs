@@ -141,7 +141,7 @@ fn main() -> Result<()> {
                 .flat_map(|l| l.units.iter().cloned())
                 .collect();
 
-            let mut first_healer = true;
+            let mut heal_cursor = 0usize;
             for eid in roster.drain(..) {
                 if !is_alive(&state, eid) {
                     continue;
@@ -155,16 +155,10 @@ fn main() -> Result<()> {
                         eid,
                         &mut events,
                         &mut action_index,
-                        first_healer,
+                        &mut heal_cursor,
                     );
                     if heal_done {
-                        first_healer = false;
                         continue;
-                    }
-                    if first_healer {
-                        // did not heal; still allow next healer to act as first
-                    } else {
-                        first_healer = false;
                     }
                 }
 
@@ -286,7 +280,6 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 },
                 is_hero: false,
                 next_enemy_idx: 0,
-                next_ally_idx: 0,
             };
             formation.entities.insert(eid, ent);
         }
@@ -316,7 +309,6 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 can_target: vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial],
                 is_hero: true,
                 next_enemy_idx: 0,
-                next_ally_idx: 0,
             };
             formation.entities.insert(eid, ent);
         }
@@ -508,7 +500,7 @@ fn healer_act(
     healer_id: EntityId,
     events: &mut Vec<String>,
     idx: &mut usize,
-    is_first: bool,
+    cursor: &mut usize,
 ) -> bool {
     let (side, heal_amt, range, line, start_idx) = {
         let h = get_entity(state, healer_id);
@@ -517,7 +509,7 @@ fn healer_act(
             h.heal.unwrap_or(0.0),
             h.heal_range.unwrap_or(0),
             h.line,
-            if is_first { 0 } else { h.next_ally_idx },
+            *cursor,
         )
     };
     if heal_amt <= 0.0 {
@@ -600,11 +592,8 @@ fn healer_act(
             break;
         }
     }
-    {
-        let h = get_entity_mut(state, healer_id);
-        if wlen > 0 {
-            h.next_ally_idx = (start_idx + processed) % wlen;
-        }
+    if wlen > 0 {
+        *cursor = (start_idx + processed) % wlen;
     }
     true
 }
@@ -885,7 +874,6 @@ mod tests {
             can_target: vec![],
             is_hero,
             next_enemy_idx: 0,
-            next_ally_idx: 0,
         };
         form.entities.insert(id, ent);
         id
@@ -1285,7 +1273,8 @@ mod tests {
         // sister tries to heal but should ignore dead horseman
         let att_ids = state.att.units[0].units.clone();
         let sis_id = att_ids[2];
-        let _ = healer_act(&mut state, sis_id, &mut events, &mut idx, true);
+        let mut cursor = 0;
+        let _ = healer_act(&mut state, sis_id, &mut events, &mut idx, &mut cursor);
 
         assert_eq!(state.att.entities.get(&h1).unwrap().cur_health, 0.0);
     }
@@ -1511,7 +1500,8 @@ mod tests {
 
         let mut events = vec![];
         let mut idx = 1;
-        let _ = healer_act(&mut state, healer, &mut events, &mut idx, true);
+        let mut cursor = 0;
+        let _ = healer_act(&mut state, healer, &mut events, &mut idx, &mut cursor);
 
         assert_eq!(state.att.entities.get(&u1).unwrap().cur_health, 10.0);
         assert_eq!(state.att.entities.get(&u2).unwrap().cur_health, 7.0);
@@ -1570,18 +1560,82 @@ mod tests {
 
         let mut events = vec![];
         let mut idx = 1;
+        let mut cursor = 0;
         // Round 1: healer starts at first unit
-        let _ = healer_act(&mut state, healer, &mut events, &mut idx, false);
+        let _ = healer_act(&mut state, healer, &mut events, &mut idx, &mut cursor);
         assert_eq!(state.att.entities.get(&u1).unwrap().cur_health, 10.0);
         // Reset health for round 2
         for &(id, hp) in [(u1, 5.0), (u2, 6.0), (u3, 8.0)].iter() {
             let e = state.att.entities.get_mut(&id).unwrap();
             e.cur_health = hp;
         }
-        let _ = healer_act(&mut state, healer, &mut events, &mut idx, false);
+        let _ = healer_act(&mut state, healer, &mut events, &mut idx, &mut cursor);
 
         assert_eq!(state.att.entities.get(&u2).unwrap().cur_health, 10.0);
         assert_eq!(state.att.entities.get(&u3).unwrap().cur_health, 9.0);
         assert_eq!(state.att.entities.get(&u1).unwrap().cur_health, 5.0);
+    }
+
+    #[test]
+    fn multiple_healers_rotate_targets() {
+        let cfg = BattleConfig {
+            units: HashMap::new(),
+            attacker: ArmyConfig::default(),
+            defender: ArmyConfig::default(),
+            buildings: vec![],
+            rules: RulesConfig {
+                max_rounds: 0,
+                defender_acts_first: true,
+                healer_spillover: false,
+                targeting: TargetingPolicy::ClosestThenReadingOrder,
+            },
+        };
+
+        let att_template = vec![LayoutLine {
+            units: vec![
+                UnitKind::Horseman,
+                UnitKind::Horseman,
+                UnitKind::SisterOfMercy,
+                UnitKind::SisterOfMercy,
+            ],
+        }];
+        let def_template = vec![LayoutLine { units: vec![] }];
+
+        let mut state = BattleState {
+            round: 0,
+            att: Formation::new(Side::Attacker, SideModifiers::default(), att_template),
+            def_: Formation::new(Side::Defender, SideModifiers::default(), def_template),
+            cfg,
+            def_building_hp_bonus: 0.0,
+        };
+
+        let h1 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let h2 = add_unit(&mut state.att, UnitKind::Horseman, false);
+        let s1 = add_unit(&mut state.att, UnitKind::SisterOfMercy, false);
+        let s2 = add_unit(&mut state.att, UnitKind::SisterOfMercy, false);
+
+        for &hid in &[h1, h2] {
+            let e = state.att.entities.get_mut(&hid).unwrap();
+            e.base_health = 10.0;
+            e.cur_health = 5.0;
+        }
+        for &sid in &[s1, s2] {
+            let e = state.att.entities.get_mut(&sid).unwrap();
+            e.heal = Some(5.0);
+            e.heal_range = Some(1);
+        }
+
+        state.att.repack(&state.cfg, 0, true, None);
+
+        let mut events = vec![];
+        let mut idx = 1;
+        let mut cursor = 0;
+
+        let ids = state.att.units[0].units.clone();
+        let _ = healer_act(&mut state, ids[2], &mut events, &mut idx, &mut cursor);
+        let _ = healer_act(&mut state, ids[3], &mut events, &mut idx, &mut cursor);
+
+        assert_eq!(state.att.entities.get(&h1).unwrap().cur_health, 10.0);
+        assert_eq!(state.att.entities.get(&h2).unwrap().cur_health, 10.0);
     }
 }
