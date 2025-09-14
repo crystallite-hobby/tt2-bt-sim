@@ -143,12 +143,7 @@ fn main() -> Result<()> {
 
             let mut first_healer = true;
             for eid in roster.drain(..) {
-                if !is_alive(&state, eid) {
-                    continue;
-                }
-                let is_hero = { get_entity(&state, eid).is_hero };
-
-                // Healer?
+                // Healer? (can heal even it is not alive already in the round)
                 if get_entity(&state, eid).heal.unwrap_or(0.0) > 0.0 {
                     let heal_done = healer_act(
                         &mut state,
@@ -167,6 +162,12 @@ fn main() -> Result<()> {
                         first_healer = false;
                     }
                 }
+
+                if !is_alive(&state, eid) {
+                    continue;
+                }
+
+                let is_hero = { get_entity(&state, eid).is_hero };
 
                 // Attacker?
                 if get_entity(&state, eid).attack.unwrap_or(0.0) > 0.0 {
@@ -286,7 +287,7 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 },
                 is_hero: false,
                 next_enemy_idx: 0,
-                next_ally_idx: 0,
+                last_ally_id: None,
             };
             formation.entities.insert(eid, ent);
         }
@@ -316,7 +317,7 @@ fn seed_side(state: &mut BattleState, side: Side) -> Result<()> {
                 can_target: vec![UnitClass::Land, UnitClass::Naval, UnitClass::Aerial],
                 is_hero: true,
                 next_enemy_idx: 0,
-                next_ally_idx: 0,
+                last_ally_id: None,
             };
             formation.entities.insert(eid, ent);
         }
@@ -437,11 +438,11 @@ fn print_armies_picture(state: &BattleState) {
     }
 }
 
-fn hp_str(e: &Entity) -> String {
-    if e.cur_health > e.base_health {
-        format!("({:.0}+{:.2})", e.base_health, e.cur_health - e.base_health)
+fn hp_str(cur_health: f64, base_health: f64) -> String {
+    if cur_health > base_health {
+        format!("({:.0}+{:.2})", base_health, cur_health - base_health)
     } else {
-        format!("{:.2}", e.cur_health)
+        format!("{:.2}", cur_health)
     }
 }
 
@@ -460,7 +461,7 @@ fn print_layouts(state: &BattleState) {
                 li + 1,
                 si + 1,
                 e.kind.name(),
-                hp_str(e),
+                hp_str(e.cur_health, e.base_health),
             );
         }
     }
@@ -477,7 +478,7 @@ fn print_layouts(state: &BattleState) {
                 li + 1,
                 si + 1,
                 e.kind.name(),
-                hp_str(e),
+                hp_str(e.cur_health, e.base_health),
             );
         }
     }
@@ -510,14 +511,14 @@ fn healer_act(
     idx: &mut usize,
     is_first: bool,
 ) -> bool {
-    let (side, heal_amt, range, line, start_idx) = {
+    let (side, heal_amt, range, line, last_id) = {
         let h = get_entity(state, healer_id);
         (
             h.side,
             h.heal.unwrap_or(0.0),
             h.heal_range.unwrap_or(0),
             h.line,
-            if is_first { 0 } else { h.next_ally_idx },
+            if is_first { h.last_ally_id } else { None },
         )
     };
     if heal_amt <= 0.0 {
@@ -552,6 +553,20 @@ fn healer_act(
         (ea.line, ea.slot).cmp(&(eb.line, eb.slot))
     });
 
+    let start_idx = if let Some(sid) = last_id {
+        wounded
+            .iter()
+            .enumerate()
+            .find_map(|(i, id)| (*id == sid).then_some(i))
+            .expect(&format!(
+                "Can't find the last wound unit with id {:?} in the wound list {:?}",
+                sid, wounded
+            ))
+            + 1
+    } else {
+        0
+    };
+
     let mut remaining = heal_amt;
     let wlen = wounded.len();
     let mut processed = 0;
@@ -572,14 +587,14 @@ fn healer_act(
             (h.kind, h.side, h.line, h.slot)
         };
 
-        let (target_kind, target_side, target_line, target_slot, new_health) = {
+        let (target_kind, target_side, target_line, target_slot, new_health, base_health) = {
             let e = get_entity_mut(state, wid);
             e.cur_health += apply;
-            (e.kind, e.side, e.line, e.slot, e.cur_health)
+            (e.kind, e.side, e.line, e.slot, e.cur_health, e.base_health)
         };
 
         events.push(format!(
-            "{}. {} #{}{}.{} heals {} #{}{}.{} ({:.2}) => +{:.2}. Now {:.2}",
+            "{}. {} #{}{}.{} heals {} #{}{}.{} ({:.2}) => +{:.2}. Now {}",
             *idx,
             healer_info.0.name(),
             side_char(healer_info.1),
@@ -591,7 +606,7 @@ fn healer_act(
             target_slot,
             heal_amt,
             apply,
-            new_health
+            hp_str(new_health, base_health)
         ));
         *idx += 1;
         remaining -= apply;
@@ -603,7 +618,9 @@ fn healer_act(
     {
         let h = get_entity_mut(state, healer_id);
         if wlen > 0 {
-            h.next_ally_idx = (start_idx + processed) % wlen;
+            if processed > 0 {
+                h.last_ally_id = Some(wounded[(start_idx + processed - 1) % wlen]);
+            };
         }
     }
     true
@@ -716,7 +733,7 @@ fn attacker_act(
 
         if -dmg > cur_hp {
             // compute minimum effective attack to ensure the unit is killed
-            let mut needed_eff = cur_hp + (cur_hp * cur_hp + 4.0 * cur_hp * def_val).sqrt() / 2.0;
+            let mut needed_eff = (cur_hp + (cur_hp * cur_hp + 4.0 * cur_hp * def_val).sqrt()) / 2.0;
             // do not exceed available attack
             if needed_eff > eff_atk {
                 needed_eff = eff_atk;
@@ -733,10 +750,10 @@ fn attacker_act(
             remaining_base_atk = 0.0;
         }
 
-        let new_health = {
+        let (new_health, base_health) = {
             let t = get_entity_mut(state, eid);
             t.cur_health = (t.cur_health + dmg).max(0.0);
-            t.cur_health
+            (t.cur_health, t.base_health)
         };
 
         if new_health <= 0.0 {
@@ -744,7 +761,7 @@ fn attacker_act(
         }
 
         events.push(format!(
-            "{}. {} #{}{}.{} attacks {} #{}{}.{}. Attack {:.2} vs Defense {:.2} => damage {:+.2}. {} now {:.2}",
+            "{}. {} #{}{}.{} attacks {} #{}{}.{}. Attack {:.2} vs Defense {:.2} => damage {:+.2}. {} now {}",
             *idx,
             src_kind.name(),
             side_char(src_side),
@@ -758,7 +775,7 @@ fn attacker_act(
             def_val,
             dmg,
             t_kind.name(),
-            new_health
+            hp_str(new_health, base_health)
         ));
         *idx += 1;
 
@@ -885,7 +902,7 @@ mod tests {
             can_target: vec![],
             is_hero,
             next_enemy_idx: 0,
-            next_ally_idx: 0,
+            last_ally_id: None,
         };
         form.entities.insert(id, ent);
         id

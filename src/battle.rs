@@ -53,7 +53,7 @@ pub struct Entity {
     pub can_target: Vec<UnitClass>,
     pub is_hero: bool,
     pub next_enemy_idx: usize,
-    pub next_ally_idx: usize,
+    pub last_ally_id: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -113,23 +113,14 @@ impl Formation {
     ) {
         if let Some(layouts) = layouts {
             let mut counts: BTreeMap<UnitKind, usize> = BTreeMap::new();
-            for e in self
-                .entities
-                .values()
-                .filter(|e| e.cur_health > 0.0)
-            {
+            for e in self.entities.values().filter(|e| e.cur_health > 0.0) {
                 let key = self.canonicalize(e.kind);
                 *counts.entry(key).or_default() += 1;
             }
 
             let side_kind: SideKind = self.side.into();
             let template = select_layout(layouts, side_kind, &counts)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "No matching layout for {:?}: {:?}",
-                        self.side, counts
-                    )
-                });
+                .unwrap_or_else(|| panic!("No matching layout for {:?}: {:?}", self.side, counts));
 
             self.template = template.clone();
             let mut set = BTreeSet::new();
@@ -182,7 +173,7 @@ impl Formation {
     pub fn reset_memory(&mut self) {
         for e in self.entities.values_mut() {
             e.next_enemy_idx = 0;
-            e.next_ally_idx = 0;
+            e.last_ally_id = None;
         }
     }
 }
